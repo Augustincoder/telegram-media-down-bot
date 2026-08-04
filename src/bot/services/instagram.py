@@ -4,17 +4,14 @@ from typing import Optional
 import aiohttp
 from instagrapi import Client
 from instagrapi.exceptions import ClientError, ChallengeRequired
-from aiogram.types import BufferedInputFile
-
-from bot.utils.validators import INSTAGRAM_REEL_PATTERN
+from bot.utils.validators import INSTAGRAM_LINK_PATTERN
 
 logger = logging.getLogger(__name__)
 
 def get_challenge_code(username, choice):
     mode = "SMS" if choice == 1 else "Email"
     print(f"\n[DIQQAT] Instagram {username} uchun tasdiqlash kodini {mode} orqali yubordi!")
-    code = input(f"Iltimos, {mode} ga kelgan 6 xonali kodni terminalga kiriting: ")
-    return code
+    return input(f"Iltimos, {mode} ga kelgan 6 xonali kodni terminalga kiriting: ")
 
 class InstagramService:
     def __init__(self):
@@ -39,16 +36,13 @@ class InstagramService:
             
         import pathlib
         session_file = pathlib.Path(f"instagram_session_{username}.json")
-        
         try:
             if session_file.exists():
                 self.client.load_settings(session_file)
-                
             self.client.login(username, password)
             self.client.dump_settings(session_file)
             self.is_logged_in = True
             return True
-            
         except ChallengeRequired as e:
             logger.error(f"Challenge Required! Could not resolve automatically.")
             return False
@@ -56,16 +50,14 @@ class InstagramService:
             logger.error(f"Failed to login to Instagram via password: {e}")
             return False
 
-    async def download_reel_bytes(self, url: str) -> Optional[bytes]:
+    async def get_instagram_media(self, url: str) -> list[dict]:
+        """Bitta post/reel/karusel ichidagi barcha medialarni (video/rasm) xotiraga tortib qaytaradi."""
         loop = asyncio.get_running_loop()
         
-        # O(1) tezlikda URL ichidan shortcode ni ajratib olamiz (Tarmoq so'rovisiz)
-        match = INSTAGRAM_REEL_PATTERN.search(url)
+        match = INSTAGRAM_LINK_PATTERN.search(url)
         if not match:
             raise ValueError("Noto'g'ri havola formati")
-        shortcode = match.group(1)
 
-        # 1. Ma'lumotlarni olish (Faqat bitta API so'rov)
         def fetch_media_info():
             media_pk = self.client.media_pk_from_url(url)
             return self.client.media_info(media_pk)
@@ -74,43 +66,48 @@ class InstagramService:
             media_info = await loop.run_in_executor(None, fetch_media_info)
         except ClientError as e:
             logger.error(f"Instagrapi ClientError downloading {url}: {e}")
-            return None
+            return []
         except Exception as e:
             logger.error(f"Unexpected error fetching info for {url}: {e}")
-            return None
+            return []
 
-        # 2. Video URL ni ajratib olish
-        video_url = None
-        if media_info.media_type == 2:  # 2 = Video
-            video_url = str(media_info.video_url) if media_info.video_url else None
-        elif media_info.media_type == 8:  # 8 = Album/Carousel
+        # Turlarga qarab URL'larni ajratib olamiz
+        media_items = []
+        if media_info.media_type == 1:  # Photo
+            media_items.append({"type": "photo", "url": str(media_info.thumbnail_url)})
+        elif media_info.media_type == 2:  # Video
+            media_items.append({"type": "video", "url": str(media_info.video_url)})
+        elif media_info.media_type == 8:  # Carousel (Album)
             for res in media_info.resources:
-                if res.media_type == 2:
-                    video_url = str(res.video_url) if res.video_url else None
-                    break
+                if res.media_type == 1:
+                    media_items.append({"type": "photo", "url": str(res.thumbnail_url)})
+                elif res.media_type == 2:
+                    media_items.append({"type": "video", "url": str(res.video_url)})
         
-        if not video_url:
-            raise ValueError("Bunday postni yuklab bo'lmaydi (Faqat bitta dona video/reels yuboring)")
+        if not media_items:
+            raise ValueError("Post ichida hech qanday tasdiqlangan media topilmadi")
 
-        # 3. Diskka yozmasdan to'g'ridan-to'g'ri RAM (Xotira) ga asinxron tortish! 
-        # Bu tezlikni juda oshiradi, chunki Hard Disk/SSD (I/O) qatnashmaydi.
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(video_url) as resp:
-                    if resp.status == 200:
-                        video_bytes = await resp.read()
-                        
-                        # Fayl hajmini RAMda tekshiramiz (< 50MB)
-                        if len(video_bytes) > 49.5 * 1024 * 1024:
-                            logger.warning(f"File too large: {len(video_bytes)/1024/1024:.2f}MB")
-                            return None
-                        return video_bytes
-                    else:
-                        logger.error(f"Failed to download video file. HTTP {resp.status}")
-                        return None
-        except Exception as e:
-            logger.error(f"Error during async in-memory download of {url}: {e}")
+        # Barcha medialarni parallel (bir vaqtda) yuklaymiz!
+        async def download_item(item):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(item["url"]) as resp:
+                        if resp.status == 200:
+                            data = await resp.read()
+                            if len(data) > 49.5 * 1024 * 1024:
+                                return None
+                            return {"type": item["type"], "data": data}
+            except Exception as e:
+                logger.error(f"Error downloading item {item['url']}: {e}")
             return None
 
-# Singleton instance
+        # Asinxron parallel yuklash (Karusel 10ta bo'lsa ham tez tortadi)
+        results = await asyncio.gather(*(download_item(item) for item in media_items))
+        
+        final_media = [r for r in results if r is not None]
+        if not final_media:
+            raise ValueError("Medialarni yuklashda xatolik yuz berdi (hajmi katta bo'lishi mumkin)")
+            
+        return final_media
+
 ig_service = InstagramService()
