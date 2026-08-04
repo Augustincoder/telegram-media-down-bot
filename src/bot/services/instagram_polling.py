@@ -22,8 +22,13 @@ async def start_instagram_polling(bot: Bot):
     # Keshda oxirgi qayta ishlangan xabarlar ID sini saqlaymiz (to'liq ishlab qolmasligi uchun)
     processed_message_ids = set()
     
+    MIN_SLEEP = 20
+    MAX_SLEEP = 60
+    current_sleep = MIN_SLEEP
+    
     while True:
         try:
+            found_new_messages = False
             loop = asyncio.get_running_loop()
             
             # Sinxron instagrapi metodini executor orqali asinxron chaqirish
@@ -57,6 +62,7 @@ async def start_instagram_polling(bot: Bot):
                             processed_message_ids.add(msg.id)
                             continue
                             
+                        found_new_messages = True
                         sender_id = str(msg.user_id)
                         
                         # LOGIKA 1: PAIRING KOD
@@ -171,5 +177,10 @@ async def start_instagram_polling(bot: Bot):
         except Exception as e:
             logger.error(f"DM Polling iteratsiyasida xato: {e}")
             
-        # Anti-ban sleep: 20-30 soniya
-        await asyncio.sleep(20)
+        # Dinamik (aqlli) sleep logikasi
+        if found_new_messages:
+            current_sleep = MIN_SLEEP
+        else:
+            current_sleep = min(current_sleep + 10, MAX_SLEEP)
+            
+        await asyncio.sleep(current_sleep)
