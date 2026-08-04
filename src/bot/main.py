@@ -7,7 +7,7 @@ from aiogram.enums import ParseMode
 
 from bot.config import config
 from bot.database.session import AsyncSessionLocal, init_models
-from bot.handlers import commands, messages, pairing
+from bot.handlers import get_routers
 from bot.middlewares.db import DbSessionMiddleware
 from bot.services.instagram import ig_service
 from bot.services.instagram_polling import start_instagram_polling
@@ -46,9 +46,8 @@ async def main():
     dp.update.middleware(DbSessionMiddleware(session_pool=AsyncSessionLocal))
 
     # Ro'yxatdan o'tkazish
-    dp.include_router(commands.router)
-    dp.include_router(pairing.router)
-    dp.include_router(messages.router)
+    for r in get_routers():
+        dp.include_router(r)
 
     logger.info("Bot is now polling...")
     try:

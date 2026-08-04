@@ -67,7 +67,7 @@ async def save_profile_handler(message: Message, session: AsyncSession):
 
 @router.message(Command("saved"))
 async def list_saved_profiles(message: Message, session: AsyncSession):
-    user_id = message.from_user.id
+    user_id = message.chat.id
     result = await session.execute(
         select(SavedProfile).where(SavedProfile.user_id == user_id)
     )
