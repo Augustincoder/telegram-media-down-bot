@@ -23,7 +23,7 @@ async def link_instagram_handler(message: Message, session: AsyncSession):
     if existing_pairing and existing_pairing.is_active:
         await message.answer(
             f"✅ Sizning Telegram akkauntingiz allaqachon Instagram profil (ID: {existing_pairing.instagram_user_id}) bilan bog'langan!\n"
-            "Yopiq videolarni tortish uchun IG akkauntimizga yuborishingiz mumkin."
+            "Videolarni (Direct uzatma orqali) tortish uchun IG akkauntimizga yuborishingiz mumkin."
         )
         return
 
@@ -34,7 +34,7 @@ async def link_instagram_handler(message: Message, session: AsyncSession):
     ig_username = config.instagram_username or "rasmiy_bot_profilimiz"
     text = (
         "🔗 <b>Instagram Akkauntni Bog'lash (Pairing)</b>\n\n"
-        "Shaxsiy profilingizdagi yoki do'stlaringiz yopiq profiliga qo'yilgan Reels/Video larni yuklab olish uchun akkauntingizni bog'lashingiz kerak.\n\n"
+        "Do'stlaringiz sizga Direct orqali yuborgan yoki ulashgan (forward qilingan) Reels/Video larni yuklab olish uchun akkauntingizni bog'lashingiz kerak.\n\n"
         f"<b>Qanday qilinadi?</b>\n"
         f"1. Instagram'ga kiring va <code>{ig_username}</code> profiliga (qidiruv orqali topib) xabar (Direct Message) yozing.\n"
         f"2. Xabar matnida faqat quyidagi 6 xonali kodni yuboring:\n\n"

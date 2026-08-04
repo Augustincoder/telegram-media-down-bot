@@ -15,7 +15,7 @@ async def start_instagram_polling(bot: Bot):
     Fon jarayoni (Background worker):
     1. Instagram Direct Inbox ni har 20 soniyada o'qiydi.
     2. Pairing kod kelsa, DB ga yozib bog'laydi.
-    3. Yopiq video forward qilinsa, uni yuklab Telegramga yuboradi.
+    3. Video forward (uzatma) qilinsa, uni yuklab Telegramga yuboradi.
     """
     logger.info("Instagram DM polling worker started...")
     
@@ -81,13 +81,13 @@ async def start_instagram_polling(bot: Bot):
                                         # Foydalanuvchiga Telegram orqali xabar
                                         await bot.send_message(
                                             tg_user_id, 
-                                            f"🎉 <b>Muvaffaqiyatli!</b>\nInstagram akkauntingiz bog'landi. Endi do'stlaringiz sizga yopiq profil orqali ulashgan videolarni ham xuddi shu <b>{config.instagram_username}</b> profiliga DM qilib tashlang va men uni shu yerga yuklab beraman!"
+                                            f"🎉 <b>Muvaffaqiyatli!</b>\nInstagram akkauntingiz bog'landi. Endi do'stlaringiz sizga Direct orqali ulashgan videolarni ham xuddi shu <b>{config.instagram_username}</b> profiliga DM qilib tashlang va men uni shu yerga yuklab beraman!"
                                         )
                                         
                                         # Foydalanuvchiga Instagram orqali javob
                                         def reply_ig():
                                             ig_service.client.direct_send(
-                                                "Muvaffaqiyatli bog'landi ✅ Endi yopiq videolarni shu yerga yuborishingiz mumkin.", 
+                                                "Muvaffaqiyatli bog'landi ✅ Endi videolarni Direct orqali shu yerga yuborishingiz mumkin.", 
                                                 user_ids=[sender_id]
                                             )
                                         await loop.run_in_executor(None, reply_ig)
@@ -136,12 +136,12 @@ async def start_instagram_polling(bot: Bot):
                                         from aiogram.types import BufferedInputFile
                                         from aiogram.exceptions import TelegramRetryAfter
                                         
-                                        await bot.send_message(tg_user_id, f"📥 Yopiq media qabul qilindi, yuklanmoqda...")
+                                        await bot.send_message(tg_user_id, f"📥 Uzatma (Forward) qabul qilindi, yuklanmoqda...")
                                         
                                         async for item in ig_service.stream_instagram_media(media_url):
                                             total = item.get("total", 1)
                                             idx = item.get("index", 1)
-                                            caption = f"📥 Yopiq profil media ({idx}/{total})" if total > 1 else "📥 Yopiq profil media"
+                                            caption = f"📥 Direct media ({idx}/{total})" if total > 1 else "📥 Direct media"
                                             
                                             file = BufferedInputFile(item["data"], filename=f"media.{'mp4' if item['type'] == 'video' else 'jpg'}")
                                             
@@ -160,7 +160,7 @@ async def start_instagram_polling(bot: Bot):
                                                 
                                     except Exception as e:
                                         logger.error(f"Forward qilingan mediani tortishda xato: {e}")
-                                        await bot.send_message(tg_user_id, "❌ Yopiq mediani tortishda xatolik yuz berdi. Balki media yashiringan yoki o'chirilgandir.")
+                                        await bot.send_message(tg_user_id, "❌ Mediani tortishda xatolik yuz berdi. Balki uzatma (media) yashiringan yoki o'chirilgandir.")
                                 
                         # Xabarni o'qilgan belgisi
                         processed_message_ids.add(msg.id)
