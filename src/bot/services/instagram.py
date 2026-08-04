@@ -110,4 +110,45 @@ class InstagramService:
             
         return final_media
 
+    async def get_user_stories(self, username: str) -> list[dict]:
+        """Berilgan foydalanuvchining barcha faol hikoyalarini (stories) xotiraga yuklab qaytaradi."""
+        loop = asyncio.get_running_loop()
+        
+        def fetch_stories():
+            user_id = self.client.user_id_from_username(username)
+            return self.client.user_stories(user_id)
+
+        try:
+            stories = await loop.run_in_executor(None, fetch_stories)
+        except Exception as e:
+            logger.error(f"Error fetching stories for {username}: {e}")
+            return []
+            
+        if not stories:
+            return []
+
+        media_items = []
+        for story in stories:
+            if story.media_type == 1:
+                media_items.append({"type": "photo", "url": str(story.thumbnail_url)})
+            elif story.media_type == 2:
+                media_items.append({"type": "video", "url": str(story.video_url)})
+                
+        async def download_item(item):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(item["url"]) as resp:
+                        if resp.status == 200:
+                            data = await resp.read()
+                            if len(data) > 49.5 * 1024 * 1024:
+                                return None
+                            return {"type": item["type"], "data": data}
+            except Exception as e:
+                logger.error(f"Error downloading story item: {e}")
+            return None
+
+        results = await asyncio.gather(*(download_item(item) for item in media_items))
+        final_media = [r for r in results if r is not None]
+        return final_media
+
 ig_service = InstagramService()
