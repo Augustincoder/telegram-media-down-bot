@@ -1,25 +1,32 @@
-from pydantic import field_validator, Field, AliasChoices
+from typing import Any
+
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List, Optional, Any
+
 
 class Settings(BaseSettings):
     bot_token: str
     database_url: str = "sqlite+aiosqlite:///bot_database.db"
     
-    instagram_username: Optional[str] = None
-    instagram_password: Optional[str] = None
+    instagram_username: str | None = None
+    instagram_password: str | None = None
     
     # Har qanday env o'zgaruvchini avtomatik tutib oladi
-    instagram_session_id: Optional[str] = Field(
+    instagram_session_id: str | None = Field(
         default=None, 
         validation_alias=AliasChoices("INSTAGRAM_SESSION_ID", "INSTAGRAM_SESSIONID")
     )
     
-    admin_ids: List[int] = []
+    storage_channel_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("STORAGE_CHANNEL_ID", "DUMP_CHANNEL_ID")
+    )
+    
+    admin_ids: list[int] = []
 
     @field_validator("admin_ids", mode="before")
     @classmethod
-    def parse_admin_ids(cls, v: Any) -> List[int]:
+    def parse_admin_ids(cls, v: Any) -> list[int]:
         if isinstance(v, str):
             if not v.strip():
                 return []

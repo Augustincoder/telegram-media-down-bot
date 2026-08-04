@@ -1,16 +1,17 @@
 import asyncio
 import logging
+
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 from bot.config import config
+from bot.database.session import AsyncSessionLocal, init_models
 from bot.handlers import commands, messages, pairing
-from bot.database.session import init_models, AsyncSessionLocal
 from bot.middlewares.db import DbSessionMiddleware
-from bot.handlers import get_routers
 from bot.services.instagram import ig_service
 from bot.services.instagram_polling import start_instagram_polling
+from bot.services.story_monitor import start_story_monitor
 
 # Setup basic logging
 logging.basicConfig(
@@ -54,6 +55,7 @@ async def main():
         # Orqa fonda (background) Instagram DM polling ni ishga tushirish
         if config.instagram_session_id or (config.instagram_username and config.instagram_password):
             asyncio.create_task(start_instagram_polling(bot))
+            asyncio.create_task(start_story_monitor(bot))
             
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)

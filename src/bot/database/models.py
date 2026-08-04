@@ -64,3 +64,33 @@ class Download(Base):
 
     def __repr__(self) -> str:
         return f"<Download(id={self.id}, platform={self.platform}, user_id={self.user_id})>"
+
+class SavedProfile(Base):
+    __tablename__ = "saved_profiles"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
+    ig_username: Mapped[str] = mapped_column(String, index=True)
+    ig_user_id: Mapped[str | None] = mapped_column(String, nullable=True) 
+    added_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    user: Mapped["User"] = relationship("User")
+
+    def __repr__(self) -> str:
+        return f"<SavedProfile(user_id={self.user_id}, ig_username={self.ig_username})>"
+
+class StoryCache(Base):
+    __tablename__ = "story_cache"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    ig_username: Mapped[str] = mapped_column(String, index=True)
+    story_id: Mapped[str] = mapped_column(String, unique=True, index=True)
+    telegram_msg_id: Mapped[int] = mapped_column(BigInteger)
+    downloaded_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    def __repr__(self) -> str:
+        return f"<StoryCache(ig_username={self.ig_username}, story_id={self.story_id})>"
