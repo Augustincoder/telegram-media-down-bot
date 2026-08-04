@@ -32,3 +32,26 @@ def extract_instagram_username(text: str) -> str | None:
         return match.group(1)
         
     return None
+
+# Telegram Story kabi manzillar uchun
+TELEGRAM_STORY_PATTERN = re.compile(
+    r'(?:https?:\/\/)?(?:t\.me|telegram\.me)\/(c\/)?([A-Za-z0-9_]+)\/s\/(\d+)'
+)
+
+def extract_telegram_story_info(text: str) -> tuple[str, int] | None:
+    """
+    Qaytaradi: (peer_nomi, story_id)
+    Masalan: ('durov', 1) yoki ('c/123456789', 5)
+    """
+    match = TELEGRAM_STORY_PATTERN.search(text)
+    if match:
+        is_private = match.group(1)
+        peer = match.group(2)
+        story_id = int(match.group(3))
+        
+        if is_private:
+            # Agar t.me/c/12345/s/1 bo'lsa
+            peer = f"-100{peer}"
+            
+        return (peer, story_id)
+    return None

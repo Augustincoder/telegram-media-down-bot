@@ -12,6 +12,7 @@ from bot.middlewares.db import DbSessionMiddleware
 from bot.services.instagram import ig_service
 from bot.services.instagram_polling import start_instagram_polling
 from bot.services.story_monitor import start_story_monitor
+from bot.services.telegram_userbot import userbot_service
 
 # Setup basic logging
 logging.basicConfig(
@@ -55,6 +56,9 @@ async def main():
         if config.instagram_session_id or (config.instagram_username and config.instagram_password):
             asyncio.create_task(start_instagram_polling(bot))
             asyncio.create_task(start_story_monitor(bot))
+            
+        # Start Telegram Userbot (if configured)
+        asyncio.create_task(userbot_service.start())
             
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)

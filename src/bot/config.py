@@ -22,6 +22,11 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("STORAGE_CHANNEL_ID", "DUMP_CHANNEL_ID")
     )
     
+    # Telegram Userbot settings
+    telegram_api_id: int | None = None
+    telegram_api_hash: str | None = None
+    telegram_userbot_session_string: str | None = None
+    
     admin_ids: list[int] = []
 
     @field_validator("admin_ids", mode="before")

@@ -10,7 +10,12 @@ from sqlalchemy.future import select
 
 from bot.database.models import Download
 from bot.services.instagram import ig_service
-from bot.utils.validators import extract_instagram_url, extract_instagram_username
+from bot.services.telegram_userbot import userbot_service
+from bot.utils.validators import (
+    extract_instagram_url, 
+    extract_instagram_username,
+    extract_telegram_story_info
+)
 
 logger = logging.getLogger(__name__)
 router = Router(name="messages")
@@ -182,10 +187,48 @@ async def handle_story_download(message: Message, session: AsyncSession, usernam
             logger.error(f"Error processing stories for {username}: {e}")
             await status_msg.edit_text("❌ Hikoyalarni yuklashda xatolik yuz berdi.")
 
+async def handle_telegram_story(message: Message, session: AsyncSession, peer: str, story_id: int):
+    """Telegram hikoyasini Userbot orqali yuklash"""
+    if not userbot_service.is_connected:
+        await message.answer("❌ Telegram Userbot ulanmagan. Iltimos, adminlarga murojaat qiling.")
+        return
+        
+    status_msg = await message.answer(f"⚡ Telegram hikoyasi tortilmoqda...")
+    
+    import os
+    file_path = f"downloads/tg_story_{peer}_{story_id}.mp4"
+    os.makedirs("downloads", exist_ok=True)
+    
+    try:
+        downloaded = await userbot_service.download_story(peer, story_id, file_path)
+        if not downloaded:
+            await status_msg.edit_text("❌ Hikoya topilmadi yoki men uni ko'ra olmayman (yopiq profil).")
+            return
+            
+        from aiogram.types import FSInputFile
+        media = FSInputFile(downloaded)
+        
+        # Fajl kengaytmasiga qarab video yoki rasm sifatida yuborish
+        if downloaded.endswith(".mp4"):
+            await message.answer_video(media, caption="📥 Telegram hikoyasi")
+        else:
+            await message.answer_photo(media, caption="📥 Telegram hikoyasi")
+            
+        await status_msg.delete()
+        os.remove(downloaded)
+    except Exception as e:
+        logger.error(f"Telegram hikoya xatosi: {e}")
+        await status_msg.edit_text("❌ Telegram hikoyasini yuklashda kutilmagan xato yuz berdi.")
+
 @router.message(F.text)
 async def process_text_message(message: Message, session: AsyncSession):
     text = message.text
     
+    tg_story = extract_telegram_story_info(text)
+    if tg_story:
+        peer, story_id = tg_story
+        return await handle_telegram_story(message, session, peer, story_id)
+        
     url = extract_instagram_url(text)
     if url:
         return await handle_post_download(message, session, url)

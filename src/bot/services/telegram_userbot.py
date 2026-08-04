@@ -1,0 +1,75 @@
+import asyncio
+import logging
+from telethon import TelegramClient
+from telethon.sessions import StringSession
+from telethon.tl.functions.stories import GetStoriesByIDRequest
+
+from bot.config import config
+
+logger = logging.getLogger(__name__)
+
+class TelegramUserbot:
+    def __init__(self):
+        self.client = None
+        self.is_connected = False
+
+    async def start(self):
+        if not config.telegram_api_id or not config.telegram_api_hash or not config.telegram_userbot_session_string:
+            logger.warning("Telegram Userbot credentials not fully provided. Userbot will not start.")
+            return
+
+        try:
+            self.client = TelegramClient(
+                StringSession(config.telegram_userbot_session_string),
+                config.telegram_api_id,
+                config.telegram_api_hash
+            )
+            await self.client.connect()
+            if await self.client.is_user_authorized():
+                self.is_connected = True
+                me = await self.client.get_me()
+                logger.info(f"Userbot muvaffaqiyatli ishga tushdi: @{me.username}")
+            else:
+                logger.error("Userbot sessiyasi yaroqsiz! Qaytadan login qiling.")
+        except Exception as e:
+            logger.error(f"Userbot ni ishga tushirishda xatolik: {e}")
+
+    async def stop(self):
+        if self.client and self.is_connected:
+            await self.client.disconnect()
+            self.is_connected = False
+
+    async def download_story(self, peer: str, story_id: int, file_path: str) -> str | None:
+        """
+        Telegram story'ni yuklab olish
+        peer: username (masalan, 'durov') yoki telefon raqami
+        story_id: 1, 2, 3 kabi story ID
+        """
+        if not self.is_connected:
+            raise Exception("Userbot ishga tushirilmagan. Story yuklab bo'lmaydi.")
+            
+        try:
+            # Username/peer ni telethon entitiy'ga o'tkazamiz
+            entity = await self.client.get_input_entity(peer)
+            
+            # Story'ni olish
+            result = await self.client(GetStoriesByIDRequest(
+                peer=entity,
+                id=[story_id]
+            ))
+            
+            if not result.stories:
+                return None
+                
+            story = result.stories[0]
+            
+            # Yuklab olish
+            logger.info(f"Yuklanmoqda: @{peer} -> story {story_id}")
+            downloaded_file = await self.client.download_media(story.media, file=file_path)
+            
+            return downloaded_file
+        except Exception as e:
+            logger.error(f"Telegram hikoyasini yuklashda xato: {e}")
+            raise e
+
+userbot_service = TelegramUserbot()
