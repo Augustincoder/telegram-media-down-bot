@@ -4,25 +4,31 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, BufferedInputFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from bot.utils.validators import extract_instagram_url, extract_instagram_username
 from bot.services.instagram import ig_service
 from bot.database.models import Download
-from bot.handlers.media_helpers import send_downloaded_media, send_cached_media
 
 logger = logging.getLogger(__name__)
 router = Router(name="messages")
 
 download_semaphore = asyncio.Semaphore(3)
 
+async def send_cached_items_individually(message: Message, file_ids: list[dict], caption: str):
+    """Keshdagi fayllarni guruhlamasdan, ketma-ket alohida xabar qilib yuboradi."""
+    for item in file_ids:
+        if item["type"] == "video":
+            await message.answer_video(item["file_id"], caption=caption)
+        else:
+            await message.answer_photo(item["file_id"], caption=caption)
+
 async def handle_post_download(message: Message, session: AsyncSession, url: str):
-    """Reels, Post va Karusellarni keshlash va yuklash logikasi"""
+    """Reels, Post va Karusellarni keshlash va oqim (stream) ko'rinishida yuklash"""
     user_id = message.from_user.id
     
-    # 1. Keshni tekshirish
     result = await session.execute(
         select(Download).where(Download.url == url).where(Download.file_id != None).limit(1)
     )
@@ -31,30 +37,35 @@ async def handle_post_download(message: Message, session: AsyncSession, url: str
     if cached_download and cached_download.file_id:
         logger.info(f"Cache hit for POST: {url}")
         try:
-            # Fayllar strukturasi qanday bo'lishidan qat'i nazar, JSON formatiga keltiramiz
             if cached_download.media_type in ("video", "photo"):
                 file_ids = [{"type": cached_download.media_type, "file_id": cached_download.file_id}]
             else:
                 file_ids = json.loads(cached_download.file_id)
                 
-            await send_cached_media(message, file_ids, caption="📥 Yuklab olindi (Keshdan)")
+            await send_cached_items_individually(message, file_ids, caption="📥 Yuklab olindi (Keshdan)")
             return
         except Exception as e:
             logger.error(f"Post keshni o'qishda xatolik: {e}")
 
-    # 2. Yangi yuklash jarayoni
-    status_msg = await message.answer("⚡ Media yuklanmoqda...")
+    status_msg = await message.answer("⚡ Media tekshirilmoqda, yuklash boshlanadi...")
     async with download_semaphore:
         try:
-            media_items = await ig_service.get_instagram_media(url)
-            if not media_items:
+            sent_file_ids = []
+            
+            # Oqim qabul qilish va kelgan onida darhol yuborish
+            async for item in ig_service.stream_instagram_media(url):
+                file = BufferedInputFile(item["data"], filename=f"media.{'mp4' if item['type'] == 'video' else 'jpg'}")
+                if item["type"] == "video":
+                    sent_msg = await message.answer_video(file, caption="📥 Yuklab olindi")
+                    sent_file_ids.append({"type": "video", "file_id": sent_msg.video.file_id})
+                else:
+                    sent_msg = await message.answer_photo(file, caption="📥 Yuklab olindi")
+                    sent_file_ids.append({"type": "photo", "file_id": sent_msg.photo[-1].file_id})
+
+            if not sent_file_ids:
                 await status_msg.edit_text("❌ Mediani yuklab olishni imkoni bo'lmadi.")
                 return
 
-            # Helper orqali media fayllarini Telegramga yuborish
-            sent_file_ids = await send_downloaded_media(message, media_items, caption="📥 Yuklab olindi")
-            
-            # 3. Natijalarni keshga yozish
             media_type = "carousel" if len(sent_file_ids) > 1 else sent_file_ids[0]["type"]
             cached_file_id = json.dumps(sent_file_ids) if len(sent_file_ids) > 1 else sent_file_ids[0]["file_id"]
 
@@ -76,12 +87,10 @@ async def handle_post_download(message: Message, session: AsyncSession, url: str
             logger.error(f"Error processing {url}: {e}")
             await status_msg.edit_text("❌ Tizimda kutilmagan xatolik yuz berdi.")
 
-
 async def handle_story_download(message: Message, session: AsyncSession, username: str):
-    """Hikoyalarni (Stories) keshlash va yuklash logikasi"""
+    """Hikoyalarni (Stories) keshlash va oqim (stream) sifatida ketma-ket yuborish"""
     user_id = message.from_user.id
     
-    # 1. Hikoyalar uchun maxsus "10 daqiqalik" keshni tekshirish
     time_threshold = datetime.now(timezone.utc) - timedelta(minutes=10)
     result = await session.execute(
         select(Download)
@@ -97,26 +106,29 @@ async def handle_story_download(message: Message, session: AsyncSession, usernam
         logger.info(f"Story cache hit for @{username}")
         try:
             file_ids = json.loads(cached_story.file_id)
-            await send_cached_media(message, file_ids, caption=f"📥 @{username} hikoyalari (Keshdan)")
+            await send_cached_items_individually(message, file_ids, caption=f"📥 @{username} hikoyasi (Keshdan)")
             return
         except Exception as e:
             logger.error(f"Story keshini o'qishda xatolik: {e}")
 
-    # 2. Yangi hikoyalarni yuklash
-    status_msg = await message.answer(f"⚡ @{username} profili tahlil qilinmoqda...")
+    status_msg = await message.answer(f"⚡ @{username} profilidan hikoyalar tortilmoqda...")
     async with download_semaphore:
         try:
-            stories = await ig_service.get_user_stories(username)
-            if not stories:
-                await status_msg.edit_text(f"❌ @{username} profilida so'nggi 24 soat ichida hikoyalar topilmadi yoki profil yopiq (Private).")
+            sent_file_ids = []
+            
+            async for item in ig_service.stream_user_stories(username):
+                file = BufferedInputFile(item["data"], filename=f"story.{'mp4' if item['type'] == 'video' else 'jpg'}")
+                if item["type"] == "video":
+                    sent_msg = await message.answer_video(file, caption=f"📥 @{username} hikoyasi")
+                    sent_file_ids.append({"type": "video", "file_id": sent_msg.video.file_id})
+                else:
+                    sent_msg = await message.answer_photo(file, caption=f"📥 @{username} hikoyasi")
+                    sent_file_ids.append({"type": "photo", "file_id": sent_msg.photo[-1].file_id})
+                    
+            if not sent_file_ids:
+                await status_msg.edit_text(f"❌ @{username} profilida so'nggi 24 soat ichida hikoyalar topilmadi yoki profil yopiq.")
                 return
-
-            await status_msg.edit_text(f"⚡ @{username} profilidan jami {len(stories)} ta hikoya topildi, yuklanmoqda...")
             
-            # Helper orqali barcha hikoyalarni Telegramga yuborish
-            sent_file_ids = await send_downloaded_media(message, stories, caption=f"📥 @{username} hikoyasi")
-            
-            # 3. Hikoyalar keshini JSON array sifatida bitta qatorda saqlash
             new_dl = Download(
                 user_id=user_id, 
                 platform="instagram", 
@@ -132,10 +144,8 @@ async def handle_story_download(message: Message, session: AsyncSession, usernam
             logger.error(f"Error processing stories for {username}: {e}")
             await status_msg.edit_text("❌ Hikoyalarni yuklashda xatolik yuz berdi.")
 
-
 @router.message(F.text)
 async def process_text_message(message: Message, session: AsyncSession):
-    """Barcha matnli xabarlarni tutib olib, tegishli funktsiyaga yo'naltiruvchi (Router) vazifasini bajaradi."""
     text = message.text
     
     url = extract_instagram_url(text)
