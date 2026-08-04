@@ -97,8 +97,7 @@ async def start_instagram_polling(bot: Bot):
                                         await session.rollback()
                         
                         # LOGIKA 2: FORWARD QILINGAN REELS/VIDEO
-                        # "clip" -> reel, "media_share" -> post share
-                        elif msg.item_type in ["clip", "media_share", "xma_media_share"]:
+                        elif msg.item_type in ["clip", "media_share", "xma_media_share", "xma_clip", "xma_story_share", "story_share"]:
                             # Bu media qaysi foydalanuvchidan keldi? (DB dan tekshiramiz)
                             from sqlalchemy.future import select
                             result = await session.execute(
@@ -109,19 +108,29 @@ async def start_instagram_polling(bot: Bot):
                             if pairing and pairing.is_active:
                                 tg_user_id = pairing.user_id
                                 
-                                # Hozirgi instagrapi strukturasida clip/media ni olish
-                                media_id = None
-                                if msg.item_type == "clip" and hasattr(msg, "clip"):
+                                media_url = None
+                                
+                                if msg.item_type in ["xma_clip", "xma_media_share", "xma_story_share"]:
+                                    if hasattr(msg, "xma_share") and msg.xma_share and isinstance(msg.xma_share, dict):
+                                        media_url = msg.xma_share.get('video_url') or msg.xma_share.get('target_url')
+                                    if not media_url and hasattr(msg, "raw_xma") and msg.raw_xma and isinstance(msg.raw_xma, dict):
+                                        for key in msg.raw_xma:
+                                            if isinstance(msg.raw_xma[key], list) and len(msg.raw_xma[key]) > 0:
+                                                media_url = msg.raw_xma[key][0].get('target_url')
+                                                if media_url: break
+
+                                elif msg.item_type == "clip" and hasattr(msg, "clip") and msg.clip:
                                     media_id = getattr(msg.clip, "id", None) or getattr(msg.clip, "pk", None)
-                                elif msg.item_type == "media_share" and hasattr(msg, "media_share"):
-                                    media_id = getattr(msg.media_share, "id", None) or getattr(msg.media_share, "pk", None)
+                                    if media_id: media_url = f"https://instagram.com/p/{str(media_id).split('_')[0]}/"
                                     
-                                if media_id:
-                                    logger.info(f"Downloading forwarded media {media_id} for TG {tg_user_id}")
-                                    try:
-                                        # Video urlini tiklash
-                                        media_url = f"https://instagram.com/p/{media_id.split('_')[0]}/"
-                                        
+                                elif msg.item_type in ["media_share", "story_share"] and hasattr(msg, "media_share") and msg.media_share:
+                                    media_id = getattr(msg.media_share, "id", None) or getattr(msg.media_share, "pk", None)
+                                    if media_id: media_url = f"https://instagram.com/p/{str(media_id).split('_')[0]}/"
+                                
+                                # Agar url topilsa tortishni boshlaymiz
+                                if media_url:
+                                    logger.info(f"Downloading forwarded media {media_url} for TG {tg_user_id}")
+                                    try:    
                                         # IG Service orqali stream yuklab Telegramga jo'natamiz
                                         from bot.handlers.messages import send_cached_items_individually
                                         from aiogram.types import BufferedInputFile
