@@ -1,0 +1,44 @@
+[tool.poetry]
+name = "media-down-bot"
+version = "1.0.0"
+description = "Universal Telegram Bot for downloading media from Instagram and Telegram with an innovative pairing system."
+authors = ["Augustincoder <your_email@example.com>"]
+readme = "README.md"
+packages = [{include = "bot", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+aiogram = "^3.4.1"
+instagrapi = "^2.1.2"
+redis = "^5.0.1"
+rq = "^1.15.0"
+sqlalchemy = {extras = ["asyncio"], version = "^2.0.25"}
+aiosqlite = "^0.19.0"
+python-dotenv = "^1.0.1"
+telethon = "^1.33.1"
+pydantic = "^2.5.3"
+pydantic-settings = "^2.1.0"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.1.14"
+mypy = "^1.8.0"
+pytest = "^7.4.4"
+pytest-asyncio = "^0.23.3"
+pre-commit = "^3.6.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
