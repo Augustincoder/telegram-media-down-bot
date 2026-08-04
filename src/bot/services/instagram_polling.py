@@ -23,8 +23,8 @@ async def start_instagram_polling(bot: Bot):
     
     # Keshda oxirgi qayta ishlangan xabarlar ID sini saqlaymiz (to'liq ishlab qolmasligi uchun)
     processed_message_ids = set()
-    from datetime import datetime, timezone
-    bot_start_time = datetime.now(timezone.utc)
+    from datetime import datetime
+    bot_start_time = datetime.now()
     
     MIN_SLEEP = 20
     MAX_SLEEP = 60
@@ -62,9 +62,7 @@ async def start_instagram_polling(bot: Bot):
                             continue
                             
                         # Agar xabar bot ishga tushishidan oldin kelgan bo'lsa, tashlab o'tamiz
-                        msg_time = msg.timestamp
-                        if msg_time.tzinfo is None:
-                            msg_time = msg_time.replace(tzinfo=timezone.utc)
+                        msg_time = msg.timestamp.replace(tzinfo=None)
                         if msg_time < bot_start_time:
                             processed_message_ids.add(msg.id)
                             continue
