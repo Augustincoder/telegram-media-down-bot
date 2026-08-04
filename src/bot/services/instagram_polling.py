@@ -85,11 +85,20 @@ async def start_instagram_polling(bot: Bot):
                                 tg_user_id = pairing_cache.verify_code(code)
                                 
                                 if tg_user_id:
+                                    # Try to get username for better UI
+                                    ig_username = None
+                                    try:
+                                        user_info = await loop.run_in_executor(None, ig_service.client.user_info, sender_id)
+                                        ig_username = user_info.username
+                                    except Exception as e:
+                                        logger.warning(f"Foydalanuvchi nomini olishda xatolik: {e}")
+                                        
                                     # Bog'lanishni saqlash
                                     new_pairing = InstagramPairing(
                                         user_id=tg_user_id, 
                                         instagram_user_id=sender_id,
-                                        instagram_username=thread.users[0].username if thread.users else None
+                                        instagram_username=ig_username,
+                                        is_active=True
                                     )
                                     session.add(new_pairing)
                                     try:

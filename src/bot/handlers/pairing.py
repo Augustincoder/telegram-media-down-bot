@@ -58,9 +58,10 @@ async def linked_accounts_handler(message: Message, session: AsyncSession):
         
     text = "🔗 <b>Ulangan Instagram akkauntlaringiz:</b>\n\n"
     for idx, p in enumerate(pairings, start=1):
-        text += f"{idx}. <b>ID:</b> <code>{p.instagram_user_id}</code>\n"
+        display_name = f"@{p.instagram_username}" if p.instagram_username else f"ID: {p.instagram_user_id}"
+        text += f"{idx}. <b>{display_name}</b>\n"
         
-    text += "\n<i>Barcha ulanishlarni uzib tashlash uchun /unlink_all tugmasini bosing. Yoki bittasini uzish uchun /unlink_instagram ID formatida yuboring.</i>"
+    text += "\n<i>Barcha ulanishlarni uzib tashlash uchun /unlink_all tugmasini bosing. Yoki bittasini uzish uchun /unlink_instagram @username (yoki ID) formatida yuboring.</i>"
     await message.answer(text)
 
 @router.message(Command("unlink_all"))
@@ -87,21 +88,25 @@ async def unlink_instagram_handler(message: Message, session: AsyncSession):
     args = message.text.split()
     
     if len(args) < 2:
-        await message.answer("❌ Qaysi akkauntni uzishni ko'rsatmadingiz. Iltimos, /linked orqali ID ni topib, <code>/unlink_instagram ID</code> shaklida yuboring. Yoki hammasini uzish uchun /unlink_all ishlating.")
+        await message.answer("❌ Qaysi akkauntni uzishni ko'rsatmadingiz. Iltimos, /linked orqali profilni topib, <code>/unlink_instagram @username</code> shaklida yuboring.")
         return
         
-    target_ig_id = args[1]
+    target_ig = args[1].replace("@", "").strip()
     
     result = await session.execute(
-        select(InstagramPairing).where(InstagramPairing.user_id == user_id, InstagramPairing.instagram_user_id == target_ig_id)
+        select(InstagramPairing).where(
+            InstagramPairing.user_id == user_id, 
+            (InstagramPairing.instagram_user_id == target_ig) | (InstagramPairing.instagram_username == target_ig)
+        )
     )
     existing_pairing = result.scalar_one_or_none()
     
     if not existing_pairing:
-        await message.answer("❌ Bunday ID ga ega bog'langan akkaunt topilmadi.")
+        await message.answer(f"❌ <b>{target_ig}</b> ga bog'langan akkaunt topilmadi.")
         return
         
+    deleted_target = existing_pairing.instagram_username or existing_pairing.instagram_user_id
     await session.delete(existing_pairing)
     await session.commit()
     
-    await message.answer(f"🗑 {target_ig_id} ID li Instagram profilingiz bilan bog'lanish muvaffaqiyatli uzildi!")
+    await message.answer(f"🗑 <b>{deleted_target}</b> Instagram profilingiz bilan bog'lanish muvaffaqiyatli uzildi!")

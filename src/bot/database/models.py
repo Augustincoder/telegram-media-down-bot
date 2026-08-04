@@ -31,7 +31,7 @@ class InstagramPairing(Base):
     __tablename__ = "instagram_pairings"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), unique=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
     instagram_user_id: Mapped[str] = mapped_column(String, unique=True, index=True)
     instagram_username: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
