@@ -50,50 +50,44 @@ class InstagramService:
             return False
 
     async def _stream_media_items_concurrently(self, media_items: list[dict]):
-        """Ichki yordamchi: Yuklab olish va jo'natishni parallel (stream) qilib beradi."""
-        queue = asyncio.Queue()
+        """Ichki yordamchi: Yuklab olish va jo'natishni parallel (stream) qilib beradi, tartibni saqlaydi."""
+        total = len(media_items)
+        sem = asyncio.Semaphore(2)
+        loop = asyncio.get_running_loop()
         
-        async def producer():
-            sem = asyncio.Semaphore(2)
-            loop = asyncio.get_running_loop()
-            
-            def fetch_bytes(download_url: str) -> bytes:
-                resp = self.client.public.get(download_url, stream=True, timeout=15)
-                resp.raise_for_status()
-                data = bytearray()
-                for chunk in resp.iter_content(chunk_size=1024 * 1024):
-                    if chunk:
-                        data.extend(chunk)
+        def fetch_bytes(download_url: str) -> bytes:
+            resp = self.client.public.get(download_url, stream=True, timeout=15)
+            resp.raise_for_status()
+            data = bytearray()
+            for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    data.extend(chunk)
+                if len(data) > 49.5 * 1024 * 1024:
+                    break
+            return bytes(data)
+
+        async def download_item(item):
+            async with sem:
+                try:
+                    data = await loop.run_in_executor(None, fetch_bytes, item["url"])
                     if len(data) > 49.5 * 1024 * 1024:
-                        break
-                return bytes(data)
+                        logger.warning(f"File too large for {item['url'][:50]}...")
+                        return None
+                    return {"type": item["type"], "data": data}
+                except Exception as e:
+                    logger.error(f"Error downloading item {item['url'][:50]}...: {type(e).__name__} {e}")
+                    return None
 
-            async def download_item(item):
-                async with sem:
-                    try:
-                        data = await loop.run_in_executor(None, fetch_bytes, item["url"])
-                        if len(data) > 49.5 * 1024 * 1024:
-                            logger.warning(f"File too large for {item['url'][:50]}...")
-                            await queue.put(None)
-                            return
-                        await queue.put({"type": item["type"], "data": data})
-                    except Exception as e:
-                        logger.error(f"Error downloading item {item['url'][:50]}...: {type(e).__name__} {e}")
-                        await queue.put(None)
+        # Barcha vazifalarni orqa fonda boshlash
+        tasks = [asyncio.create_task(download_item(item)) for item in media_items]
 
-            await asyncio.gather(*(download_item(item) for item in media_items))
-            await queue.put("DONE")
-
-        # Orqa fonda yuklashni boshlaymiz
-        asyncio.create_task(producer())
-
-        # Tayyor bo'lganlarini bittalab (stream) qaytaramiz
-        while True:
-            item = await queue.get()
-            if item == "DONE":
-                break
-            if item is not None:
-                yield item
+        # Natijalarni original tartibda kutish va yuborish
+        for idx, task in enumerate(tasks, start=1):
+            result = await task
+            if result:
+                result["index"] = idx
+                result["total"] = total
+                yield result
 
     async def stream_instagram_media(self, url: str):
         """Bitta post/reel/karusel medialarini oqim (stream) qilib qaytaradi."""
