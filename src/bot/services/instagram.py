@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from typing import Optional
-import aiohttp
 from instagrapi import Client
 from instagrapi.exceptions import ClientError, ChallengeRequired
 from bot.utils.validators import INSTAGRAM_LINK_PATTERN
@@ -50,6 +49,50 @@ class InstagramService:
             logger.error(f"Failed to login to Instagram via password: {e}")
             return False
 
+    async def _download_media_items_concurrently(self, media_items: list[dict]) -> list[dict]:
+        """Ichki yordamchi funksiya: URL'lardan baytlarni asinxron limit bilan tortib kelish."""
+        import requests
+        
+        # Birdaniga juda ko'p tortib networkni o'ldirib qo'ymaslik uchun limit (2 ta)
+        sem = asyncio.Semaphore(2)
+        loop = asyncio.get_running_loop()
+        
+        def fetch_bytes(download_url: str) -> bytes:
+            # Facebook/Instagram CDN maxsus cookie va headerlarsiz ulanishni uzib qo'yishi mumkin.
+            # Shuning uchun instagrapi'ning tayyor "public" sessiyasini ishlatamiz.
+            # stream=True orqali qotib qolishni (hanging) oldini olib, qismma-qism o'qiymiz.
+            resp = self.client.public.get(download_url, stream=True, timeout=15)
+            resp.raise_for_status()
+            
+            data = bytearray()
+            # 1 MB dan bo'lib o'qiymiz
+            for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    data.extend(chunk)
+                # Agar video hajmi 49.5 MB dan oshib ketsa, to'xtatamiz
+                if len(data) > 49.5 * 1024 * 1024:
+                    break
+                    
+            return bytes(data)
+
+        async def download_item(item):
+            async with sem:
+                try:
+                    data = await loop.run_in_executor(None, fetch_bytes, item["url"])
+                    if len(data) > 49.5 * 1024 * 1024:
+                        logger.warning(f"File too large for {item['url'][:50]}...")
+                        return None
+                    return {"type": item["type"], "data": data}
+                except Exception as e:
+                    logger.error(f"Error downloading item {item['url'][:50]}...: {type(e).__name__} {e}")
+                return None
+
+        # Asinxron parallel yuklash
+        results = await asyncio.gather(*(download_item(item) for item in media_items))
+        
+        final_media = [r for r in results if r is not None]
+        return final_media
+
     async def get_instagram_media(self, url: str) -> list[dict]:
         """Bitta post/reel/karusel ichidagi barcha medialarni (video/rasm) xotiraga tortib qaytaradi."""
         loop = asyncio.get_running_loop()
@@ -71,13 +114,12 @@ class InstagramService:
             logger.error(f"Unexpected error fetching info for {url}: {e}")
             return []
 
-        # Turlarga qarab URL'larni ajratib olamiz
         media_items = []
-        if media_info.media_type == 1:  # Photo
+        if media_info.media_type == 1:
             media_items.append({"type": "photo", "url": str(media_info.thumbnail_url)})
-        elif media_info.media_type == 2:  # Video
+        elif media_info.media_type == 2:
             media_items.append({"type": "video", "url": str(media_info.video_url)})
-        elif media_info.media_type == 8:  # Carousel (Album)
+        elif media_info.media_type == 8:
             for res in media_info.resources:
                 if res.media_type == 1:
                     media_items.append({"type": "photo", "url": str(res.thumbnail_url)})
@@ -87,24 +129,7 @@ class InstagramService:
         if not media_items:
             raise ValueError("Post ichida hech qanday tasdiqlangan media topilmadi")
 
-        # Barcha medialarni parallel (bir vaqtda) yuklaymiz!
-        async def download_item(item):
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(item["url"]) as resp:
-                        if resp.status == 200:
-                            data = await resp.read()
-                            if len(data) > 49.5 * 1024 * 1024:
-                                return None
-                            return {"type": item["type"], "data": data}
-            except Exception as e:
-                logger.error(f"Error downloading item {item['url']}: {e}")
-            return None
-
-        # Asinxron parallel yuklash (Karusel 10ta bo'lsa ham tez tortadi)
-        results = await asyncio.gather(*(download_item(item) for item in media_items))
-        
-        final_media = [r for r in results if r is not None]
+        final_media = await self._download_media_items_concurrently(media_items)
         if not final_media:
             raise ValueError("Medialarni yuklashda xatolik yuz berdi (hajmi katta bo'lishi mumkin)")
             
@@ -134,21 +159,7 @@ class InstagramService:
             elif story.media_type == 2:
                 media_items.append({"type": "video", "url": str(story.video_url)})
                 
-        async def download_item(item):
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(item["url"]) as resp:
-                        if resp.status == 200:
-                            data = await resp.read()
-                            if len(data) > 49.5 * 1024 * 1024:
-                                return None
-                            return {"type": item["type"], "data": data}
-            except Exception as e:
-                logger.error(f"Error downloading story item: {e}")
-            return None
-
-        results = await asyncio.gather(*(download_item(item) for item in media_items))
-        final_media = [r for r in results if r is not None]
+        final_media = await self._download_media_items_concurrently(media_items)
         return final_media
 
 ig_service = InstagramService()
