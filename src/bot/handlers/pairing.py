@@ -16,16 +16,13 @@ async def link_instagram_handler(message: Message, session: AsyncSession):
     
     # 1. Avval allaqachon bog'langanligini tekshiramiz
     result = await session.execute(
-        select(InstagramPairing).where(InstagramPairing.user_id == user_id).limit(1)
+        select(InstagramPairing).where(InstagramPairing.user_id == user_id, InstagramPairing.is_active == True)
     )
-    existing_pairing = result.scalar_one_or_none()
+    existing_pairings = result.scalars().all()
     
-    if existing_pairing and existing_pairing.is_active:
-        await message.answer(
-            f"✅ Sizning Telegram akkauntingiz allaqachon Instagram profil (ID: {existing_pairing.instagram_user_id}) bilan bog'langan!\n"
-            "Videolarni (Direct uzatma orqali) tortish uchun IG akkauntimizga yuborishingiz mumkin."
-        )
-        return
+    count_text = ""
+    if existing_pairings:
+        count_text = f"✅ <b>Holat:</b> Sizning Telegramingizga hozirda {len(existing_pairings)} ta Instagram profil ulangan.\nYana akkaunt ulash uchun pastdagi ko'rsatmani bajaring.\n\n"
 
     # 2. Yangi kod generatsiya qilamiz
     code = pairing_cache.generate_code(user_id)
@@ -34,31 +31,77 @@ async def link_instagram_handler(message: Message, session: AsyncSession):
     ig_username = config.instagram_username or "rasmiy_bot_profilimiz"
     text = (
         "🔗 <b>Instagram Akkauntni Bog'lash (Pairing)</b>\n\n"
+        f"{count_text}"
         "Do'stlaringiz sizga Direct orqali yuborgan yoki ulashgan (forward qilingan) Reels/Video larni yuklab olish uchun akkauntingizni bog'lashingiz kerak.\n\n"
         f"<b>Qanday qilinadi?</b>\n"
         f"1. Instagram'ga kiring va <code>{ig_username}</code> profiliga (qidiruv orqali topib) xabar (Direct Message) yozing.\n"
         f"2. Xabar matnida faqat quyidagi 6 xonali kodni yuboring:\n\n"
         f"<code>{code}</code>\n\n"
         "⏳ <i>Kod 10 daqiqa davomida o'z kuchini saqlaydi. Yuborganingizdan so'ng biroz kuting.</i>\n\n"
-        "Barcha bog'lanishlarni o'chirish uchun /unlink_instagram tugmasini bosing."
+        "Ulangan akkauntlarni ko'rish va uzish uchun /linked tugmasini bosing."
     )
     
     await message.answer(text)
 
-@router.message(Command("unlink_instagram"))
-async def unlink_instagram_handler(message: Message, session: AsyncSession):
+@router.message(Command("linked"))
+async def linked_accounts_handler(message: Message, session: AsyncSession):
     user_id = message.from_user.id
     
     result = await session.execute(
-        select(InstagramPairing).where(InstagramPairing.user_id == user_id).limit(1)
+        select(InstagramPairing).where(InstagramPairing.user_id == user_id, InstagramPairing.is_active == True)
+    )
+    pairings = result.scalars().all()
+    
+    if not pairings:
+        await message.answer("Sizda bog'langan Instagram akkauntlar yo'q. Ulanish uchun /link_instagram tugmasini bosing.")
+        return
+        
+    text = "🔗 <b>Ulangan Instagram akkauntlaringiz:</b>\n\n"
+    for idx, p in enumerate(pairings, start=1):
+        text += f"{idx}. <b>ID:</b> <code>{p.instagram_user_id}</code>\n"
+        
+    text += "\n<i>Barcha ulanishlarni uzib tashlash uchun /unlink_all tugmasini bosing. Yoki bittasini uzish uchun /unlink_instagram ID formatida yuboring.</i>"
+    await message.answer(text)
+
+@router.message(Command("unlink_all"))
+async def unlink_all_handler(message: Message, session: AsyncSession):
+    user_id = message.from_user.id
+    result = await session.execute(
+        select(InstagramPairing).where(InstagramPairing.user_id == user_id)
+    )
+    pairings = result.scalars().all()
+    
+    if not pairings:
+        await message.answer("Sizda bog'langan Instagram akkaunt topilmadi.")
+        return
+        
+    for p in pairings:
+        await session.delete(p)
+    await session.commit()
+    
+    await message.answer("🗑 Barcha Instagram profillar bilan bog'lanish muvaffaqiyatli uzildi!")
+
+@router.message(Command("unlink_instagram"))
+async def unlink_instagram_handler(message: Message, session: AsyncSession):
+    user_id = message.from_user.id
+    args = message.text.split()
+    
+    if len(args) < 2:
+        await message.answer("❌ Qaysi akkauntni uzishni ko'rsatmadingiz. Iltimos, /linked orqali ID ni topib, <code>/unlink_instagram ID</code> shaklida yuboring. Yoki hammasini uzish uchun /unlink_all ishlating.")
+        return
+        
+    target_ig_id = args[1]
+    
+    result = await session.execute(
+        select(InstagramPairing).where(InstagramPairing.user_id == user_id, InstagramPairing.instagram_user_id == target_ig_id)
     )
     existing_pairing = result.scalar_one_or_none()
     
     if not existing_pairing:
-        await message.answer("Sizda bog'langan Instagram akkaunt topilmadi.")
+        await message.answer("❌ Bunday ID ga ega bog'langan akkaunt topilmadi.")
         return
         
     await session.delete(existing_pairing)
     await session.commit()
     
-    await message.answer("🗑 Instagram profilingiz bilan bog'lanish muvaffaqiyatli uzildi! Endi boshqa profil ulasangiz bo'ladi.")
+    await message.answer(f"🗑 {target_ig_id} ID li Instagram profilingiz bilan bog'lanish muvaffaqiyatli uzildi!")
