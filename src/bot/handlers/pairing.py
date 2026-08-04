@@ -4,9 +4,9 @@ from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from bot.config import config
 from bot.database.models import InstagramPairing
 from bot.services.pairing_cache import pairing_cache
-from bot.config import config
 
 router = Router(name="pairing")
 
@@ -39,7 +39,26 @@ async def link_instagram_handler(message: Message, session: AsyncSession):
         f"1. Instagram'ga kiring va <code>{ig_username}</code> profiliga (qidiruv orqali topib) xabar (Direct Message) yozing.\n"
         f"2. Xabar matnida faqat quyidagi 6 xonali kodni yuboring:\n\n"
         f"<code>{code}</code>\n\n"
-        "⏳ <i>Kod 10 daqiqa davomida o'z kuchini saqlaydi. Yuborganingizdan so'ng biroz kuting.</i>"
+        "⏳ <i>Kod 10 daqiqa davomida o'z kuchini saqlaydi. Yuborganingizdan so'ng biroz kuting.</i>\n\n"
+        "Barcha bog'lanishlarni o'chirish uchun /unlink_instagram tugmasini bosing."
     )
     
     await message.answer(text)
+
+@router.message(Command("unlink_instagram"))
+async def unlink_instagram_handler(message: Message, session: AsyncSession):
+    user_id = message.from_user.id
+    
+    result = await session.execute(
+        select(InstagramPairing).where(InstagramPairing.user_id == user_id).limit(1)
+    )
+    existing_pairing = result.scalar_one_or_none()
+    
+    if not existing_pairing:
+        await message.answer("Sizda bog'langan Instagram akkaunt topilmadi.")
+        return
+        
+    await session.delete(existing_pairing)
+    await session.commit()
+    
+    await message.answer("🗑 Instagram profilingiz bilan bog'lanish muvaffaqiyatli uzildi! Endi boshqa profil ulasangiz bo'ladi.")

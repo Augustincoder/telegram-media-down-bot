@@ -1,16 +1,16 @@
 import asyncio
-import logging
 import json
-from datetime import datetime, timedelta, timezone
+import logging
+from datetime import UTC, datetime, timedelta
 
-from aiogram import Router, F
-from aiogram.types import Message, BufferedInputFile
+from aiogram import F, Router
+from aiogram.types import BufferedInputFile, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from bot.utils.validators import extract_instagram_url, extract_instagram_username
-from bot.services.instagram import ig_service
 from bot.database.models import Download
+from bot.services.instagram import ig_service
+from bot.utils.validators import extract_instagram_url, extract_instagram_username
 
 logger = logging.getLogger(__name__)
 router = Router(name="messages")
@@ -18,6 +18,7 @@ router = Router(name="messages")
 download_semaphore = asyncio.Semaphore(3)
 
 from aiogram.exceptions import TelegramRetryAfter
+
 
 async def send_cached_items_individually(message: Message, file_ids: list[dict], caption_base: str):
     """Keshdagi fayllarni guruhlamasdan, ketma-ket alohida xabar qilib yuboradi."""
@@ -43,7 +44,7 @@ async def handle_post_download(message: Message, session: AsyncSession, url: str
     user_id = message.from_user.id
     
     result = await session.execute(
-        select(Download).where(Download.url == url).where(Download.file_id != None).limit(1)
+        select(Download).where(Download.url == url).where(Download.file_id is not None).limit(1)
     )
     cached_download = result.scalar_one_or_none()
 
@@ -116,11 +117,11 @@ async def handle_story_download(message: Message, session: AsyncSession, usernam
     """Hikoyalarni (Stories) keshlash va oqim (stream) sifatida ketma-ket yuborish"""
     user_id = message.from_user.id
     
-    time_threshold = datetime.now(timezone.utc) - timedelta(minutes=10)
+    time_threshold = datetime.now(UTC) - timedelta(minutes=10)
     result = await session.execute(
         select(Download)
         .where(Download.url == f"story_{username}")
-        .where(Download.file_id != None)
+        .where(Download.file_id is not None)
         .where(Download.downloaded_at >= time_threshold)
         .order_by(Download.downloaded_at.desc())
         .limit(1)

@@ -1,12 +1,14 @@
 import asyncio
 import logging
 import re
-from bot.services.instagram import ig_service
-from bot.services.pairing_cache import pairing_cache
+
+from aiogram import Bot
+
+from bot.config import config
 from bot.database.models import InstagramPairing
 from bot.database.session import AsyncSessionLocal
-from bot.config import config
-from aiogram import Bot
+from bot.services.instagram import ig_service
+from bot.services.pairing_cache import pairing_cache
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,8 @@ async def start_instagram_polling(bot: Bot):
     
     # Keshda oxirgi qayta ishlangan xabarlar ID sini saqlaymiz (to'liq ishlab qolmasligi uchun)
     processed_message_ids = set()
+    from datetime import datetime, timezone
+    bot_start_time = datetime.now(timezone.utc)
     
     MIN_SLEEP = 20
     MAX_SLEEP = 60
@@ -57,6 +61,14 @@ async def start_instagram_polling(bot: Bot):
                         if msg.id in processed_message_ids:
                             continue
                             
+                        # Agar xabar bot ishga tushishidan oldin kelgan bo'lsa, tashlab o'tamiz
+                        msg_time = msg.timestamp
+                        if msg_time.tzinfo is None:
+                            msg_time = msg_time.replace(tzinfo=timezone.utc)
+                        if msg_time < bot_start_time:
+                            processed_message_ids.add(msg.id)
+                            continue
+                            
                         # Agar biz yuborgan bo'lsak, tashlab o'tamiz
                         if msg.user_id == ig_service.client.user_id:
                             processed_message_ids.add(msg.id)
@@ -91,12 +103,12 @@ async def start_instagram_polling(bot: Bot):
                                         )
                                         
                                         # Foydalanuvchiga Instagram orqali javob
-                                        def reply_ig():
-                                            ig_service.client.direct_send(
-                                                "Muvaffaqiyatli bog'landi ✅ Endi videolarni Direct orqali shu yerga yuborishingiz mumkin.", 
-                                                user_ids=[sender_id]
-                                            )
-                                        await loop.run_in_executor(None, reply_ig)
+                                        await loop.run_in_executor(
+                                            None,
+                                            ig_service.client.direct_send,
+                                            "Muvaffaqiyatli bog'landi ✅ Endi videolarni Direct orqali shu yerga yuborishingiz mumkin.",
+                                            [sender_id]
+                                        )
                                         
                                     except Exception as e:
                                         logger.error(f"Pairing saqlashda xato: {e}")
@@ -138,11 +150,10 @@ async def start_instagram_polling(bot: Bot):
                                     logger.info(f"Downloading forwarded media {media_url} for TG {tg_user_id}")
                                     try:    
                                         # IG Service orqali stream yuklab Telegramga jo'natamiz
-                                        from bot.handlers.messages import send_cached_items_individually
-                                        from aiogram.types import BufferedInputFile
                                         from aiogram.exceptions import TelegramRetryAfter
+                                        from aiogram.types import BufferedInputFile
                                         
-                                        await bot.send_message(tg_user_id, f"📥 Uzatma (Forward) qabul qilindi, yuklanmoqda...")
+                                        await bot.send_message(tg_user_id, "📥 Uzatma (Forward) qabul qilindi, yuklanmoqda...")
                                         
                                         async for item in ig_service.stream_instagram_media(media_url):
                                             total = item.get("total", 1)
@@ -178,9 +189,6 @@ async def start_instagram_polling(bot: Bot):
             logger.error(f"DM Polling iteratsiyasida xato: {e}")
             
         # Dinamik (aqlli) sleep logikasi
-        if found_new_messages:
-            current_sleep = MIN_SLEEP
-        else:
-            current_sleep = min(current_sleep + 10, MAX_SLEEP)
+        current_sleep = MIN_SLEEP if found_new_messages else min(current_sleep + 10, MAX_SLEEP)
             
         await asyncio.sleep(current_sleep)

@@ -1,5 +1,4 @@
 import re
-from typing import Optional
 
 # Post, Reel va IGTV lar uchun
 INSTAGRAM_LINK_PATTERN = re.compile(
@@ -16,14 +15,14 @@ INSTAGRAM_STORY_LINK_PATTERN = re.compile(
     r'(?:https?:\/\/)?(?:www\.)?instagram\.com\/stories\/([A-Za-z0-9_.]+)\/?'
 )
 
-def extract_instagram_url(text: str) -> Optional[str]:
+def extract_instagram_url(text: str) -> str | None:
     match = INSTAGRAM_LINK_PATTERN.search(text)
     if match:
         shortcode = match.group(1)
         return f"https://www.instagram.com/p/{shortcode}/"
     return None
 
-def extract_instagram_username(text: str) -> Optional[str]:
+def extract_instagram_username(text: str) -> str | None:
     match = INSTAGRAM_STORY_LINK_PATTERN.search(text)
     if match:
         return match.group(1)

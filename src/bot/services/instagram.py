@@ -1,8 +1,9 @@
 import asyncio
 import logging
-from typing import Optional
+
 from instagrapi import Client
-from instagrapi.exceptions import ClientError, ChallengeRequired
+from instagrapi.exceptions import ChallengeRequired
+
 from bot.utils.validators import INSTAGRAM_LINK_PATTERN
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ class InstagramService:
         self.client.challenge_code_handler = get_challenge_code
         self.is_logged_in = False
 
-    def login(self, username: Optional[str], password: Optional[str], session_id: Optional[str] = None) -> bool:
+    def login(self, username: str | None, password: str | None, session_id: str | None = None) -> bool:
         if session_id:
             logger.info("Session ID topildi. Uni ishlatib kirishga urinamiz...")
             try:
@@ -42,8 +43,8 @@ class InstagramService:
             self.client.dump_settings(session_file)
             self.is_logged_in = True
             return True
-        except ChallengeRequired as e:
-            logger.error(f"Challenge Required! Could not resolve automatically.")
+        except ChallengeRequired:
+            logger.error("Challenge Required! Could not resolve automatically.")
             return False
         except Exception as e:
             logger.error(f"Failed to login to Instagram via password: {e}")
