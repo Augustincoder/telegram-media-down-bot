@@ -25,12 +25,11 @@ async def main():
     logger.info("Database models initialized.")
     
     # Init Instagram Service (Login using Session ID or Credentials)
-    session_id_to_use = config.instagram_session_id or config.instagram_sessionid
-    if session_id_to_use or (config.instagram_username and config.instagram_password):
+    if config.instagram_session_id or (config.instagram_username and config.instagram_password):
         ig_service.login(
             username=config.instagram_username, 
             password=config.instagram_password,
-            session_id=session_id_to_use
+            session_id=config.instagram_session_id
         )
     
     # Setup Bot and Dispatcher

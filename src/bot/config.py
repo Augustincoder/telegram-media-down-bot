@@ -1,4 +1,4 @@
-from pydantic import field_validator, Field
+from pydantic import field_validator, Field, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Optional, Any
 
@@ -9,9 +9,11 @@ class Settings(BaseSettings):
     instagram_username: Optional[str] = None
     instagram_password: Optional[str] = None
     
-    # Ikki xil yozilishini ham qabul qiladigan qilib qo'ydik
-    instagram_session_id: Optional[str] = Field(default=None, validation_alias="INSTAGRAM_SESSION_ID")
-    instagram_sessionid: Optional[str] = Field(default=None, validation_alias="INSTAGRAM_SESSIONID")
+    # Har qanday env o'zgaruvchini avtomatik tutib oladi
+    instagram_session_id: Optional[str] = Field(
+        default=None, 
+        validation_alias=AliasChoices("INSTAGRAM_SESSION_ID", "INSTAGRAM_SESSIONID")
+    )
     
     admin_ids: List[int] = []
 
