@@ -106,7 +106,7 @@ async def save_profile_handler(message: Message, session: AsyncSession):
 
 @router.message(Command("saved"))
 async def list_saved_profiles(message: Message, session: AsyncSession):
-    user_id = message.from_user.id
+    user_id = message.chat.id
     result = await session.execute(
         select(SavedProfile).where(SavedProfile.user_id == user_id)
     )
@@ -118,13 +118,26 @@ async def list_saved_profiles(message: Message, session: AsyncSession):
         )
         return
 
-    wait_msg = await message.answer("⏳ Saqlangan profillar ro'yxati tayyorlanmoqda...")
+    wait_msg = await message.answer("⏳ Saqlangan profillarning hikoyalari tekshirilmoqda...")
 
     keyboard = []
+    loop = asyncio.get_running_loop()
 
     for p in profiles:
         emoji = "📸" if p.platform == "instagram" else "✈️"
-        text = f"{emoji} @{p.ig_username}"
+        try:
+            if p.platform == "instagram":
+                stories = await loop.run_in_executor(None, ig_service.client.user_stories, p.ig_user_id)
+                has_story = len(stories) > 0
+            else:
+                stories = await userbot_service.get_peer_stories_info(p.ig_username)
+                has_story = bool(stories)
+            
+            icon = "🟢" if has_story else "⚪"
+            text = f"{icon} {emoji} @{p.ig_username}"
+        except Exception:
+            text = f"⚠️ {emoji} @{p.ig_username}"
+            
         keyboard.append(
             [InlineKeyboardButton(text=text, callback_data=f"get_story_{p.id}")]
         )
@@ -139,6 +152,10 @@ async def list_saved_profiles(message: Message, session: AsyncSession):
 
 @router.callback_query(F.data == "refresh_saved")
 async def refresh_saved(callback: CallbackQuery, session: AsyncSession):
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
     await list_saved_profiles(callback.message, session)
     await callback.answer()
 
