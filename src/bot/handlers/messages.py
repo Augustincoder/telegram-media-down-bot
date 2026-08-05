@@ -179,73 +179,17 @@ async def handle_story_download(message: Message, session: AsyncSession, usernam
             )
             return
 
-        total = len(stories)
         bot = message.bot
-        sent_count = 0
-
-        for idx, story in enumerate(stories, 1):
-            await status_msg.edit_text(
-                f"📥 <b>@{username} 📸</b>: {idx}/{total} - hikoya tayyorlanmoqda..."
-            )
-            story_pk = str(story.pk)
-
-            cache_res = await session.execute(
-                select(StoryCache).where(
-                    StoryCache.story_id == story_pk,
-                    StoryCache.platform == "instagram",
-                )
-            )
-            cached = cache_res.scalar_one_or_none()
-
-            if cached and config.storage_channel_id:
-                try:
-                    await bot.copy_message(
-                        chat_id=user_id,
-                        from_chat_id=config.storage_channel_id,
-                        message_id=cached.telegram_msg_id,
-                    )
-                    sent_count += 1
-                    continue
-                except Exception:
-                    pass
-
-            media_items = []
-            if story.media_type == 1:
-                media_items.append({"type": "photo", "url": str(story.thumbnail_url)})
-            elif story.media_type == 2:
-                media_items.append({"type": "video", "url": str(story.video_url)})
-
-            async for item in ig_service._stream_media_items_concurrently(media_items):
-                file = BufferedInputFile(
-                    item["data"],
-                    filename=f"story.{'mp4' if item['type'] == 'video' else 'jpg'}",
-                )
-
-                if config.storage_channel_id:
-                    if item["type"] == "video":
-                        msg = await bot.send_video(config.storage_channel_id, video=file)
-                    else:
-                        msg = await bot.send_photo(config.storage_channel_id, photo=file)
-                    new_cache = StoryCache(
-                        story_id=story_pk,
-                        telegram_msg_id=msg.message_id,
-                        platform="instagram",
-                        ig_username=username,
-                    )
-                    session.add(new_cache)
-                    await session.commit()
-
-                    await bot.copy_message(
-                        chat_id=user_id,
-                        from_chat_id=config.storage_channel_id,
-                        message_id=msg.message_id,
-                    )
-                else:
-                    if item["type"] == "video":
-                        await bot.send_video(user_id, video=file)
-                    else:
-                        await bot.send_photo(user_id, photo=file)
-                sent_count += 1
+        
+        from bot.services.story_distributor import distribute_ig_stories
+        sent_count = await distribute_ig_stories(
+            bot=bot,
+            session=session,
+            stories=stories,
+            username=username,
+            target_chat_id=user_id,
+            status_msg=status_msg
+        )
 
         await status_msg.edit_text(
             f"✅ <b>@{username} 📸</b>: Barcha {sent_count} ta hikoyalar yuborildi!"
@@ -323,80 +267,17 @@ async def handle_all_telegram_stories(
             )
             return
 
-        total = len(stories)
         bot = message.bot
-        sent_count = 0
-        import os
-
-        for idx, story in enumerate(stories, 1):
-            await status_msg.edit_text(
-                f"📥 <b>@{peer} ✈️</b>: {idx}/{total} - hikoya tayyorlanmoqda..."
-            )
-            story_id = str(story.id)
-
-            cache_res = await session.execute(
-                select(StoryCache).where(
-                    StoryCache.story_id == story_id,
-                    StoryCache.platform == "telegram",
-                )
-            )
-            cached = cache_res.scalar_one_or_none()
-
-            if cached and config.storage_channel_id:
-                try:
-                    await bot.copy_message(
-                        chat_id=user_id,
-                        from_chat_id=config.storage_channel_id,
-                        message_id=cached.telegram_msg_id,
-                    )
-                    sent_count += 1
-                    continue
-                except Exception:
-                    pass
-
-            file_path = f"downloads/tg_story_{peer}_{story_id}.mp4"
-            os.makedirs("downloads", exist_ok=True)
-            try:
-                downloaded = await userbot_service.download_story(
-                    peer, story.id, file_path
-                )
-                if downloaded:
-                    from aiogram.types import FSInputFile
-
-                    media = FSInputFile(downloaded)
-                    is_video = downloaded.endswith(".mp4")
-
-                    if config.storage_channel_id:
-                        if is_video:
-                            msg = await bot.send_video(config.storage_channel_id, video=media)
-                        else:
-                            msg = await bot.send_photo(config.storage_channel_id, photo=media)
-                        new_cache = StoryCache(
-                            story_id=story_id,
-                            telegram_msg_id=msg.message_id,
-                            platform="telegram",
-                            ig_username=username,
-                        )
-                        session.add(new_cache)
-                        await session.commit()
-
-                        await bot.copy_message(
-                            chat_id=user_id,
-                            from_chat_id=config.storage_channel_id,
-                            message_id=msg.message_id,
-                        )
-                    else:
-                        if is_video:
-                            await bot.send_video(user_id, video=media)
-                        else:
-                            await bot.send_photo(user_id, photo=media)
-                    sent_count += 1
-            finally:
-                import contextlib
-
-                with contextlib.suppress(OSError):
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
+        
+        from bot.services.story_distributor import distribute_tg_stories
+        sent_count = await distribute_tg_stories(
+            bot=bot,
+            session=session,
+            stories=stories,
+            username=peer,
+            target_chat_id=user_id,
+            status_msg=status_msg
+        )
 
         await status_msg.edit_text(
             f"✅ <b>@{peer} ✈️</b>: Barcha {sent_count} ta hikoyalar yuborildi!"

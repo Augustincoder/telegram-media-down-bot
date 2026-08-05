@@ -55,66 +55,14 @@ async def start_story_monitor(bot: Bot):
                             stories = await loop.run_in_executor(
                                 None, ig_service.client.user_stories, ig_user_id
                             )
-
-                            for story in stories:
-                                story_pk = str(story.pk)
-
-                                cache_res = await session.execute(
-                                    select(StoryCache).where(
-                                        StoryCache.story_id == story_pk,
-                                        StoryCache.platform == "instagram",
-                                    )
-                                )
-                                cached = cache_res.scalar_one_or_none()
-                                if cached:
-                                    continue  # Allaqachon tortilgan
-
-                                from aiogram.types import BufferedInputFile
-
-                                logger.info(
-                                    f"Yangi IG hikoya topildi: {ig_username} -> {story_pk}"
-                                )
-
-                                media_items = []
-                                if story.media_type == 1:
-                                    media_items.append(
-                                        {"type": "photo", "url": str(story.thumbnail_url)}
-                                    )
-                                elif story.media_type == 2:
-                                    media_items.append({"type": "video", "url": str(story.video_url)})
-
-                                async for item in ig_service._stream_media_items_concurrently(
-                                    media_items
-                                ):
-                                    file = BufferedInputFile(
-                                        item["data"],
-                                        filename=f"story.{'mp4' if item['type'] == 'video' else 'jpg'}",
-                                    )
-                                    caption = f"📥 <b>{ig_username} 📸</b> hikoyasi (Auto-Backup)"
-
-                                    sent_msg = None
-                                    if item["type"] == "video":
-                                        sent_msg = await bot.send_video(
-                                            config.storage_channel_id,
-                                            file,
-                                            caption=caption,
-                                        )
-                                    else:
-                                        sent_msg = await bot.send_photo(
-                                            config.storage_channel_id,
-                                            file,
-                                            caption=caption,
-                                        )
-
-                                    if sent_msg:
-                                        new_cache = StoryCache(
-                                            platform="instagram",
-                                            ig_username=ig_username,
-                                            story_id=story_pk,
-                                            telegram_msg_id=sent_msg.message_id,
-                                        )
-                                        session.add(new_cache)
-                                        await session.commit()
+                            
+                            from bot.services.story_distributor import distribute_ig_stories
+                            await distribute_ig_stories(
+                                bot=bot,
+                                session=session,
+                                stories=stories,
+                                username=ig_username,
+                            )
                         except Exception as e:
                             logger.error(
                                 f"Story Monitor IG {ig_username} uchun xatolik: {e}"
@@ -127,66 +75,13 @@ async def start_story_monitor(bot: Bot):
                                 ig_username
                             )
 
-                            for story in stories:
-                                story_id = str(story.id)
-
-                                cache_res = await session.execute(
-                                    select(StoryCache).where(
-                                        StoryCache.story_id == story_id,
-                                        StoryCache.platform == "telegram",
-                                    )
-                                )
-                                cached = cache_res.scalar_one_or_none()
-                                if cached:
-                                    continue
-
-                                logger.info(
-                                    f"Yangi TG hikoya topildi: {ig_username} -> {story_id}"
-                                )
-
-                                file_path = f"downloads/auto_tg_story_{ig_username}_{story_id}.mp4"
-                                os.makedirs("downloads", exist_ok=True)
-
-                                try:
-                                    downloaded = await userbot_service.download_story(
-                                        ig_username, story.id, file_path
-                                    )
-                                    if downloaded:
-                                        from aiogram.types import FSInputFile
-
-                                        media = FSInputFile(downloaded)
-                                        caption = f"📥 <b>{ig_username} ✈️</b> hikoyasi (Auto-Backup)"
-
-                                        sent_msg = None
-                                        if downloaded.endswith(".mp4"):
-                                            sent_msg = await bot.send_video(
-                                                config.storage_channel_id,
-                                                media,
-                                                caption=caption,
-                                            )
-                                        else:
-                                            sent_msg = await bot.send_photo(
-                                                config.storage_channel_id,
-                                                media,
-                                                caption=caption,
-                                            )
-
-                                        if sent_msg:
-                                            new_cache = StoryCache(
-                                                platform="telegram",
-                                                ig_username=ig_username,
-                                                story_id=story_id,
-                                                telegram_msg_id=sent_msg.message_id,
-                                            )
-                                            session.add(new_cache)
-                                            await session.commit()
-                                finally:
-                                    import contextlib
-
-                                    with contextlib.suppress(OSError):
-                                        if os.path.exists(file_path):
-                                            os.remove(file_path)
-
+                            from bot.services.story_distributor import distribute_tg_stories
+                            await distribute_tg_stories(
+                                bot=bot,
+                                session=session,
+                                stories=stories,
+                                username=ig_username,
+                            )
                         except Exception as e:
                             logger.error(
                                 f"Story Monitor TG {ig_username} uchun xatolik: {e}"

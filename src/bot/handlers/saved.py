@@ -205,128 +205,26 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
 
         total = len(stories)
         bot = callback.bot
-        sent_count = 0
+        from bot.services.story_distributor import distribute_ig_stories, distribute_tg_stories
 
-        for idx, story in enumerate(stories, 1):
-            await status_msg.edit_text(
-                f"📥 <b>@{profile.ig_username} {emoji}</b>: {idx}/{total} - hikoya tayyorlanmoqda..."
+        if profile.platform == "instagram":
+            sent_count = await distribute_ig_stories(
+                bot=callback.bot,
+                session=session,
+                stories=stories,
+                username=profile.ig_username,
+                target_chat_id=callback.from_user.id,
+                status_msg=status_msg
             )
-
-            story_pk = (
-                str(story.pk) if profile.platform == "instagram" else str(story.id)
+        else:
+            sent_count = await distribute_tg_stories(
+                bot=callback.bot,
+                session=session,
+                stories=stories,
+                username=profile.ig_username,
+                target_chat_id=callback.from_user.id,
+                status_msg=status_msg
             )
-
-            cache_res = await session.execute(
-                select(StoryCache).where(
-                    StoryCache.story_id == story_pk,
-                    StoryCache.platform == profile.platform,
-                )
-            )
-            cached = cache_res.scalar_one_or_none()
-
-            if cached and config.storage_channel_id:
-                try:
-                    await bot.copy_message(
-                        chat_id=callback.from_user.id,
-                        from_chat_id=config.storage_channel_id,
-                        message_id=cached.telegram_msg_id,
-                    )
-                    sent_count += 1
-                    continue
-                except Exception:
-                    pass
-
-            # Download if not cached
-            if profile.platform == "instagram":
-                media_items = []
-                if story.media_type == 1:
-                    media_items.append(
-                        {"type": "photo", "url": str(story.thumbnail_url)}
-                    )
-                elif story.media_type == 2:
-                    media_items.append({"type": "video", "url": str(story.video_url)})
-
-                from aiogram.types import BufferedInputFile
-
-                async for item in ig_service._stream_media_items_concurrently(
-                    media_items
-                ):
-                    file = BufferedInputFile(
-                        item["data"],
-                        filename=f"story.{'mp4' if item['type'] == 'video' else 'jpg'}",
-                    )
-
-                    if config.storage_channel_id:
-                        if item["type"] == "video":
-                            msg = await bot.send_video(config.storage_channel_id, video=file)
-                        else:
-                            msg = await bot.send_photo(config.storage_channel_id, photo=file)
-                        new_cache = StoryCache(
-                            story_id=story_pk,
-                            telegram_msg_id=msg.message_id,
-                            platform="instagram",
-                            ig_username=profile.ig_username,
-                        )
-                        session.add(new_cache)
-                        await session.commit()
-
-                        await bot.copy_message(
-                            chat_id=callback.from_user.id,
-                            from_chat_id=config.storage_channel_id,
-                            message_id=msg.message_id,
-                        )
-                    else:
-                        if item["type"] == "video":
-                            await bot.send_video(callback.from_user.id, video=file)
-                        else:
-                            await bot.send_photo(callback.from_user.id, photo=file)
-                    sent_count += 1
-            else:
-                import os
-
-                file_path = f"downloads/tg_story_{profile.ig_username}_{story_pk}.mp4"
-                os.makedirs("downloads", exist_ok=True)
-                try:
-                    downloaded = await userbot_service.download_story(
-                        profile.ig_username, story.id, file_path
-                    )
-                    if downloaded:
-                        from aiogram.types import FSInputFile
-
-                        media = FSInputFile(downloaded)
-                        is_video = downloaded.endswith(".mp4")
-
-                        if config.storage_channel_id:
-                            if is_video:
-                                msg = await bot.send_video(config.storage_channel_id, video=media)
-                            else:
-                                msg = await bot.send_photo(config.storage_channel_id, photo=media)
-                            new_cache = StoryCache(
-                                story_id=story_pk,
-                                telegram_msg_id=msg.message_id,
-                                platform="telegram",
-                                ig_username=profile.ig_username,
-                            )
-                            session.add(new_cache)
-                            await session.commit()
-
-                            await bot.copy_message(
-                                chat_id=callback.from_user.id,
-                                from_chat_id=config.storage_channel_id,
-                                message_id=msg.message_id,
-                            )
-                        else:
-                            if is_video:
-                                await bot.send_video(callback.from_user.id, video=media)
-                            else:
-                                await bot.send_photo(callback.from_user.id, photo=media)
-                        sent_count += 1
-                finally:
-                    import contextlib
-
-                    with contextlib.suppress(OSError):
-                        if os.path.exists(file_path):
-                            os.remove(file_path)
 
         await status_msg.edit_text(
             f"✅ <b>@{profile.ig_username} {emoji}</b>: Barcha {sent_count} ta hikoyalar yuborildi!"
