@@ -141,16 +141,20 @@ class InstagramService:
             return
 
         media_items = []
+        
+        meta_username = media_info.user.username if getattr(media_info, "user", None) else None
+        meta_caption = media_info.caption_text if getattr(media_info, "caption_text", None) else None
+
         if media_info.media_type == 1:
-            media_items.append({"type": "photo", "url": str(media_info.thumbnail_url)})
+            media_items.append({"type": "photo", "url": str(media_info.thumbnail_url), "username": meta_username, "caption": meta_caption, "source_url": url})
         elif media_info.media_type == 2:
-            media_items.append({"type": "video", "url": str(media_info.video_url)})
+            media_items.append({"type": "video", "url": str(media_info.video_url), "username": meta_username, "caption": meta_caption, "source_url": url})
         elif media_info.media_type == 8:
             for res in media_info.resources:
                 if res.media_type == 1:
-                    media_items.append({"type": "photo", "url": str(res.thumbnail_url)})
+                    media_items.append({"type": "photo", "url": str(res.thumbnail_url), "username": meta_username, "caption": meta_caption, "source_url": url})
                 elif res.media_type == 2:
-                    media_items.append({"type": "video", "url": str(res.video_url)})
+                    media_items.append({"type": "video", "url": str(res.video_url), "username": meta_username, "caption": meta_caption, "source_url": url})
 
         if not media_items:
             raise ValueError("Post ichida hech qanday tasdiqlangan media topilmadi")

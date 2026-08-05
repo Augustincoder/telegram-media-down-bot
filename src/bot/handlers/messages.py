@@ -93,11 +93,21 @@ async def handle_post_download(message: Message, session: AsyncSession, url: str
             async for item in ig_service.stream_instagram_media(url):
                 total = item.get("total", 1)
                 idx = item.get("index", 1)
-                caption = (
-                    f"📥 Yuklab olindi ({idx}/{total})"
-                    if total > 1
-                    else "📥 Yuklab olindi"
-                )
+                
+                meta_user = item.get("username")
+                meta_cap = item.get("caption") or ""
+                meta_url = item.get("source_url") or url
+                
+                quote_text = ""
+                if meta_user:
+                    if total > 1 and idx != total:
+                        quote_text = f"👤 <b>@{meta_user}</b>"
+                    else:
+                        clean_cap = meta_cap[:600].replace("<", "&lt;").replace(">", "&gt;") if meta_cap else ""
+                        quote_text = f"👤 <b>@{meta_user}</b>\n\n{clean_cap}\n\n🔗 <a href='{meta_url}'>Videoga o'tish</a>"
+                
+                caption = f"<blockquote>{quote_text}</blockquote>" if quote_text else ""
+
                 file = BufferedInputFile(
                     item["data"],
                     filename=f"media.{'mp4' if item['type'] == 'video' else 'jpg'}",

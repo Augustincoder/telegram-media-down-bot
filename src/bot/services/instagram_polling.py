@@ -233,11 +233,20 @@ async def start_instagram_polling(bot: Bot):
                                             ):
                                                 total = item.get("total", 1)
                                                 idx = item.get("index", 1)
-                                                caption = (
-                                                    f"📥 Direct media ({idx}/{total})"
-                                                    if total > 1
-                                                    else "📥 Direct media"
-                                                )
+
+                                                meta_user = item.get("username")
+                                                meta_cap = item.get("caption") or ""
+                                                meta_url = item.get("source_url") or media_url
+
+                                                quote_text = ""
+                                                if meta_user:
+                                                    if total > 1 and idx != total:
+                                                        quote_text = f"👤 <b>@{meta_user}</b>"
+                                                    else:
+                                                        clean_cap = meta_cap[:600].replace("<", "&lt;").replace(">", "&gt;") if meta_cap else ""
+                                                        quote_text = f"👤 <b>@{meta_user}</b>\n\n{clean_cap}\n\n🔗 <a href='{meta_url}'>Videoga o'tish</a>"
+
+                                                caption = f"<blockquote>{quote_text}</blockquote>" if quote_text else ""
 
                                                 file = BufferedInputFile(
                                                     item["data"],
