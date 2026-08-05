@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     bot_token: str
     database_url: str = Field(
         default="sqlite+aiosqlite:///data/bot_database.db",
-        validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL", "MYSQL_URL"),
+        validation_alias=AliasChoices("POSTGRES_URL", "MYSQL_URL", "DATABASE_URL"),
     )
 
     instagram_username: str | None = None
