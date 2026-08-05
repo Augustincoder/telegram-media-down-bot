@@ -101,5 +101,19 @@ class TelegramUserbot:
             logger.error(f"Telegram foydalanuvchisi hikoyalarini yuklashda xato: {e}")
             raise e
 
+    async def get_peer_stories_info(self, peer: str) -> list:
+        """Faqat story obyektlarini (metadata) qaytaradi, yuklamaydi."""
+        if not self.is_connected:
+            return []
+        try:
+            entity = await self.client.get_input_entity(peer)
+            result = await self.client(GetPeerStoriesRequest(peer=entity))
+            if not result.stories or not result.stories.stories:
+                return []
+            return result.stories.stories
+        except Exception as e:
+            logger.error(f"Failed to get TG stories info for {peer}: {e}")
+            return []
+
 
 userbot_service = TelegramUserbot()

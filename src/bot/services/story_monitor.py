@@ -8,6 +8,8 @@ from bot.config import config
 from bot.database.models import SavedProfile, StoryCache
 from bot.database.session import AsyncSessionLocal
 from bot.services.instagram import ig_service
+from bot.services.telegram_userbot import userbot_service
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -32,71 +34,104 @@ async def start_story_monitor(bot: Bot):
             loop = asyncio.get_running_loop()
 
             async with AsyncSessionLocal() as session:
-                # Barcha unikal IG user ID larni olish (bir xil profilni har xil odam saqlagan bo'lsa bitta qilib tekshiramiz)
+                # Barcha unikal profillarni platforma bilan birga olamiz
                 result = await session.execute(
-                    select(SavedProfile.ig_user_id, SavedProfile.ig_username).distinct()
+                    select(SavedProfile.platform, SavedProfile.ig_user_id, SavedProfile.ig_username).distinct()
                 )
                 profiles = result.all()
 
-                for ig_user_id, ig_username in profiles:
-                    if not ig_user_id:
+                for platform, ig_user_id, ig_username in profiles:
+                    if not ig_username:
                         continue
-
-                    try:
-                        stories = await loop.run_in_executor(
-                            None, ig_service.client.user_stories, ig_user_id
-                        )
-
-                        for story in stories:
-                            story_pk = str(story.pk)
-
-                            # Cache ni tekshiramiz
-                            cache_res = await session.execute(
-                                select(StoryCache).where(StoryCache.story_id == story_pk)
+                        
+                    if platform == "instagram":
+                        if not ig_user_id:
+                            continue
+                        try:
+                            stories = await loop.run_in_executor(
+                                None, ig_service.client.user_stories, ig_user_id
                             )
-                            cached = cache_res.scalar_one_or_none()
 
-                            if cached:
-                                continue  # Allaqachon tortilgan
+                            for story in stories:
+                                story_pk = str(story.pk)
 
-                            # Kanalga tashlaymiz
-                            media_url = f"https://instagram.com/stories/{ig_username}/{story_pk}/"
-
-                            from aiogram.types import BufferedInputFile
-
-                            logger.info(f"Yangi hikoya topildi: {ig_username} -> {story_pk}")
-
-                            async for item in ig_service.stream_instagram_media(media_url):
-                                file = BufferedInputFile(
-                                    item["data"],
-                                    filename=f"story.{'mp4' if item['type'] == 'video' else 'jpg'}",
+                                cache_res = await session.execute(
+                                    select(StoryCache).where(StoryCache.story_id == story_pk, StoryCache.platform == "instagram")
                                 )
+                                cached = cache_res.scalar_one_or_none()
+                                if cached:
+                                    continue  # Allaqachon tortilgan
 
-                                caption = f"📥 <b>{ig_username}</b> hikoyasi (Auto-Backup)"
+                                media_url = f"https://instagram.com/stories/{ig_username}/{story_pk}/"
+                                from aiogram.types import BufferedInputFile
+                                logger.info(f"Yangi IG hikoya topildi: {ig_username} -> {story_pk}")
 
-                                sent_msg = None
-                                if item["type"] == "video":
-                                    sent_msg = await bot.send_video(
-                                        config.storage_channel_id, file, caption=caption
+                                async for item in ig_service.stream_instagram_media(media_url):
+                                    file = BufferedInputFile(
+                                        item["data"],
+                                        filename=f"story.{'mp4' if item['type'] == 'video' else 'jpg'}",
                                     )
-                                else:
-                                    sent_msg = await bot.send_photo(
-                                        config.storage_channel_id, file, caption=caption
-                                    )
+                                    caption = f"📥 <b>{ig_username} 📸</b> hikoyasi (Auto-Backup)"
+                                    
+                                    sent_msg = None
+                                    if item["type"] == "video":
+                                        sent_msg = await bot.send_video(config.storage_channel_id, file, caption=caption)
+                                    else:
+                                        sent_msg = await bot.send_photo(config.storage_channel_id, file, caption=caption)
 
-                                if sent_msg:
-                                    # Keshga yozamiz
-                                    new_cache = StoryCache(
-                                        ig_username=ig_username,
-                                        story_id=story_pk,
-                                        telegram_msg_id=sent_msg.message_id,
-                                    )
-                                    session.add(new_cache)
-                                    await session.commit()
-
-                    except Exception as e:
-                        logger.error(f"Story Monitor {ig_username} uchun xatolik: {e}")
-                        await asyncio.sleep(5)  # Rate limit bo'lsa biroz kutamiz
+                                    if sent_msg:
+                                        new_cache = StoryCache(platform="instagram", ig_username=ig_username, story_id=story_pk, telegram_msg_id=sent_msg.message_id)
+                                        session.add(new_cache)
+                                        await session.commit()
+                        except Exception as e:
+                            logger.error(f"Story Monitor IG {ig_username} uchun xatolik: {e}")
+                            await asyncio.sleep(5)
+                            
+                    elif platform == "telegram":
+                        try:
+                            stories = await userbot_service.get_peer_stories_info(ig_username)
+                            
+                            for story in stories:
+                                story_id = str(story.id)
+                                
+                                cache_res = await session.execute(
+                                    select(StoryCache).where(StoryCache.story_id == story_id, StoryCache.platform == "telegram")
+                                )
+                                cached = cache_res.scalar_one_or_none()
+                                if cached:
+                                    continue
+                                    
+                                logger.info(f"Yangi TG hikoya topildi: {ig_username} -> {story_id}")
+                                
+                                file_path = f"downloads/auto_tg_story_{ig_username}_{story_id}.mp4"
+                                os.makedirs("downloads", exist_ok=True)
+                                
+                                try:
+                                    downloaded = await userbot_service.download_story(ig_username, story.id, file_path)
+                                    if downloaded:
+                                        from aiogram.types import FSInputFile
+                                        media = FSInputFile(downloaded)
+                                        caption = f"📥 <b>{ig_username} ✈️</b> hikoyasi (Auto-Backup)"
+                                        
+                                        sent_msg = None
+                                        if downloaded.endswith(".mp4"):
+                                            sent_msg = await bot.send_video(config.storage_channel_id, media, caption=caption)
+                                        else:
+                                            sent_msg = await bot.send_photo(config.storage_channel_id, media, caption=caption)
+                                            
+                                        if sent_msg:
+                                            new_cache = StoryCache(platform="telegram", ig_username=ig_username, story_id=story_id, telegram_msg_id=sent_msg.message_id)
+                                            session.add(new_cache)
+                                            await session.commit()
+                                finally:
+                                    import contextlib
+                                    with contextlib.suppress(OSError):
+                                        if os.path.exists(file_path):
+                                            os.remove(file_path)
+                                            
+                        except Exception as e:
+                            logger.error(f"Story Monitor TG {ig_username} uchun xatolik: {e}")
+                            await asyncio.sleep(5)
 
                     await asyncio.sleep(2)  # Profillar orasida biroz kutish
 

@@ -76,6 +76,7 @@ class SavedProfile(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
+    platform: Mapped[str] = mapped_column(String, default="instagram")
     ig_username: Mapped[str] = mapped_column(String, index=True)
     ig_user_id: Mapped[str | None] = mapped_column(String, nullable=True)
     added_at: Mapped[datetime.datetime] = mapped_column(
@@ -92,6 +93,7 @@ class StoryCache(Base):
     __tablename__ = "story_cache"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    platform: Mapped[str] = mapped_column(String, default="instagram")
     ig_username: Mapped[str] = mapped_column(String, index=True)
     story_id: Mapped[str] = mapped_column(String, unique=True, index=True)
     telegram_msg_id: Mapped[int] = mapped_column(BigInteger)
