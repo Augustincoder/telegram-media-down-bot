@@ -60,7 +60,8 @@ class TelegramUserbot:
 
         try:
             # Username/peer ni telethon entitiy'ga o'tkazamiz
-            entity = await self.client.get_input_entity(peer)
+            peer_id = int(peer) if str(peer).lstrip('-').isdigit() else peer
+            entity = await self.client.get_input_entity(peer_id)
 
             # Story'ni olish
             result = await self.client(
@@ -92,7 +93,8 @@ class TelegramUserbot:
             raise Exception("Userbot ishga tushirilmagan. Story yuklab bo'lmaydi.")
 
         try:
-            entity = await self.client.get_input_entity(peer)
+            peer_id = int(peer) if str(peer).lstrip('-').isdigit() else peer
+            entity = await self.client.get_input_entity(peer_id)
             result = await self.client(GetPeerStoriesRequest(peer=entity))
 
             if not result.stories or not result.stories.stories:
@@ -112,7 +114,8 @@ class TelegramUserbot:
         if not self.is_connected:
             return []
         try:
-            entity = await self.client.get_input_entity(peer)
+            peer_id = int(peer) if str(peer).lstrip('-').isdigit() else peer
+            entity = await self.client.get_input_entity(peer_id)
             result = await self.client(GetPeerStoriesRequest(peer=entity))
             if not result.stories or not result.stories.stories:
                 return []
@@ -129,7 +132,8 @@ class TelegramUserbot:
         if not self.is_connected:
             raise Exception("Userbot ishga tushirilmagan.")
         try:
-            entity = await self.client.get_input_entity(peer)
+            peer_id = int(peer) if str(peer).lstrip('-').isdigit() else peer
+            entity = await self.client.get_input_entity(peer_id)
             messages = await self.client.get_messages(entity, ids=[message_id])
             if not messages or not messages[0]:
                 return None
