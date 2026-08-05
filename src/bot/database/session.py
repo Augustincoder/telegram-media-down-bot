@@ -1,6 +1,7 @@
 import os
 
 from dotenv import load_dotenv
+from bot.config import config
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from .models import Base
@@ -9,7 +10,13 @@ from .models import Base
 load_dotenv()
 
 # Default to SQLite if not provided, exactly as requested
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///bot_database.db")
+DATABASE_URL = config.database_url
+
+if DATABASE_URL.startswith("sqlite"):
+    import pathlib
+    db_path = DATABASE_URL.split("///")[-1]
+    pathlib.Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
 
 # Create the async engine
 engine = create_async_engine(DATABASE_URL, echo=False)

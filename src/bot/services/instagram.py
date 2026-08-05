@@ -42,7 +42,9 @@ class InstagramService:
 
         import pathlib
 
-        session_file = pathlib.Path(f"instagram_session_{username}.json")
+        data_dir = pathlib.Path("data")
+        data_dir.mkdir(exist_ok=True)
+        session_file = data_dir / f"instagram_session_{username}.json"
         try:
             if session_file.exists():
                 self.client.load_settings(session_file)

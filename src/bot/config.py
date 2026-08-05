@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     bot_token: str
-    database_url: str = "sqlite+aiosqlite:///bot_database.db"
+    database_url: str = "sqlite+aiosqlite:///data/bot_database.db"
 
     instagram_username: str | None = None
     instagram_password: str | None = None
