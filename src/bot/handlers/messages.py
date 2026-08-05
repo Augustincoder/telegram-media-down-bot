@@ -305,6 +305,11 @@ async def handle_all_telegram_stories(message: Message, peer: str):
         await status_msg.edit_text("❌ Hikoyalarni yuklashda kutilmagan xato yuz berdi.")
 
 
+@router.callback_query(F.data.startswith("set_"))
+async def process_settings(callback: CallbackQuery):
+    await callback.answer("Ushbu funksiya ishlab chiqilmoqda! 🛠", show_alert=True)
+
+
 @router.callback_query(F.data.startswith("down_ig_"))
 async def process_down_ig(callback: CallbackQuery, session: AsyncSession):
     username = callback.data.split("down_ig_")[1]
@@ -322,6 +327,38 @@ async def process_down_tg(callback: CallbackQuery):
 @router.message(F.text)
 async def process_text_message(message: Message, session: AsyncSession):
     text = message.text
+
+    # Menyu tugmalarini ushlash
+    if text == "📥 Yuklab olish":
+        return await message.answer(
+            "Men tayyorman! 😎 Shunchaki Instagram yoki Telegramdan havola/username yuboring."
+        )
+
+    if text == "💾 Saqlangan profillar":
+        from bot.handlers.saved import saved_profiles_handler
+
+        return await saved_profiles_handler(message, session)
+
+    if text == "🔗 Akkaunt ulash":
+        from bot.handlers.pairing import link_instagram_handler
+
+        return await link_instagram_handler(message, session)
+
+    if text == "⚙️ Sozlamalar":
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🇺🇿 Til (O'zbek)", callback_data="set_lang")
+        builder.button(text="🔔 Bildirishnomalar: Yoqilgan", callback_data="set_notif")
+        builder.adjust(1)
+        return await message.answer(
+            "⚙️ <b>Sozlamalar paneli</b>\n\n"
+            "O'zingizga mos ravishda botni sozlang (bu funksiyalar tez orada to'liq ishga tushadi):",
+            reply_markup=builder.as_markup(),
+        )
+
+    if text == "ℹ️ Yordam / Qoidalar":
+        from bot.handlers.commands import cmd_help
+
+        return await cmd_help(message)
 
     tg_story = extract_telegram_story_info(text)
     if tg_story:
