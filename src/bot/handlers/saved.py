@@ -118,7 +118,9 @@ async def list_saved_profiles(message: Message, session: AsyncSession):
         )
         return
 
-    wait_msg = await message.answer("⏳ Saqlangan profillarning hikoyalari tekshirilmoqda...")
+    wait_msg = await message.answer(
+        "⏳ Saqlangan profillarning hikoyalari tekshirilmoqda..."
+    )
 
     keyboard = []
     loop = asyncio.get_running_loop()
@@ -127,17 +129,19 @@ async def list_saved_profiles(message: Message, session: AsyncSession):
         emoji = "📸" if p.platform == "instagram" else "✈️"
         try:
             if p.platform == "instagram":
-                stories = await loop.run_in_executor(None, ig_service.client.user_stories, p.ig_user_id)
+                stories = await loop.run_in_executor(
+                    None, ig_service.client.user_stories, p.ig_user_id
+                )
                 has_story = len(stories) > 0
             else:
                 stories = await userbot_service.get_peer_stories_info(p.ig_username)
                 has_story = bool(stories)
-            
+
             icon = "🟢" if has_story else "⚪"
             text = f"{icon} {emoji} @{p.ig_username}"
         except Exception:
             text = f"⚠️ {emoji} @{p.ig_username}"
-            
+
         keyboard.append(
             [InlineKeyboardButton(text=text, callback_data=f"get_story_{p.id}")]
         )
@@ -212,12 +216,19 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                     except Exception:
                         pass
 
-                media_url = (
-                    f"https://instagram.com/stories/{profile.ig_username}/{story_pk}/"
-                )
+                media_items = []
+                if story.media_type == 1:
+                    media_items.append(
+                        {"type": "photo", "url": str(story.thumbnail_url)}
+                    )
+                elif story.media_type == 2:
+                    media_items.append({"type": "video", "url": str(story.video_url)})
+
                 from aiogram.types import BufferedInputFile
 
-                async for item in ig_service.stream_instagram_media(media_url):
+                async for item in ig_service._stream_media_items_concurrently(
+                    media_items
+                ):
                     file = BufferedInputFile(
                         item["data"],
                         filename=f"story.{'mp4' if item['type'] == 'video' else 'jpg'}",
