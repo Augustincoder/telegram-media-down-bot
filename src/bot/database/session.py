@@ -23,6 +23,9 @@ elif DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith(
 ):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
+if "postgresql+asyncpg://" in DATABASE_URL and "sslmode=" in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("sslmode=", "ssl=")
+
 
 # Create the async engine
 engine = create_async_engine(DATABASE_URL, echo=False)
