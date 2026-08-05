@@ -28,24 +28,56 @@ download_semaphore = asyncio.Semaphore(3)
 from aiogram.exceptions import TelegramRetryAfter
 
 
-async def send_cached_items_individually(message: Message, file_ids: list[dict], caption_base: str):
-    """Keshdagi fayllarni guruhlamasdan, ketma-ket alohida xabar qilib yuboradi."""
-    total = len(file_ids)
-    for idx, item in enumerate(file_ids, start=1):
-        caption = f"{caption_base} ({idx}/{total})" if total > 1 else caption_base
+from aiogram.types import BufferedInputFile, InputMediaPhoto, InputMediaVideo, Message
+
+async def send_media_in_chunks(message: Message, media_list: list, chunk_size=10):
+    """Media ro'yxatini 10 tadan qilib guruhlab yuboradi."""
+    sent_file_ids = []
+    for i in range(0, len(media_list), chunk_size):
+        chunk = media_list[i:i+chunk_size]
+        # Agar faqat bitta media bo'lsa, uni oddiy media sifatida jo'natamiz
+        if len(chunk) == 1 and len(media_list) == 1:
+            while True:
+                try:
+                    media_item = chunk[0]
+                    if isinstance(media_item, InputMediaVideo):
+                        sent_msg = await message.answer_video(media_item.media, caption=media_item.caption)
+                        sent_file_ids.append({"type": "video", "file_id": sent_msg.video.file_id})
+                    else:
+                        sent_msg = await message.answer_photo(media_item.media, caption=media_item.caption)
+                        sent_file_ids.append({"type": "photo", "file_id": sent_msg.photo[-1].file_id})
+                    break
+                except TelegramRetryAfter as e:
+                    logger.warning(f"Flood control exceeded. Sleeping for {e.retry_after} seconds.")
+                    await asyncio.sleep(e.retry_after + 1)
+            return sent_file_ids
+
         while True:
             try:
-                if item["type"] == "video":
-                    await message.answer_video(item["file_id"], caption=caption)
-                else:
-                    await message.answer_photo(item["file_id"], caption=caption)
-                
-                # Telegram limitlariga tushib qolmaslik uchun kichik tanaffus
-                await asyncio.sleep(0.5)
+                sent_msgs = await message.answer_media_group(chunk)
+                for msg in sent_msgs:
+                    if msg.video:
+                        sent_file_ids.append({"type": "video", "file_id": msg.video.file_id})
+                    elif msg.photo:
+                        sent_file_ids.append({"type": "photo", "file_id": msg.photo[-1].file_id})
+                await asyncio.sleep(1)
                 break
             except TelegramRetryAfter as e:
                 logger.warning(f"Flood control exceeded. Sleeping for {e.retry_after} seconds.")
                 await asyncio.sleep(e.retry_after + 1)
+    return sent_file_ids
+
+async def send_cached_items_as_album(message: Message, file_ids: list[dict], caption_base: str):
+    """Keshdagi fayllarni guruhlab (album) yuboradi."""
+    media_list = []
+    for idx, item in enumerate(file_ids):
+        caption = caption_base if idx == 0 else ""
+        if item["type"] == "video":
+            media_list.append(InputMediaVideo(media=item["file_id"], caption=caption))
+        else:
+            media_list.append(InputMediaPhoto(media=item["file_id"], caption=caption))
+            
+    await send_media_in_chunks(message, media_list)
 
 async def handle_post_download(message: Message, session: AsyncSession, url: str):
     """Reels, Post va Karusellarni keshlash va oqim (stream) ko'rinishida yuklash"""
@@ -64,7 +96,7 @@ async def handle_post_download(message: Message, session: AsyncSession, url: str
             else:
                 file_ids = json.loads(cached_download.file_id)
                 
-            await send_cached_items_individually(message, file_ids, caption="📥 Yuklab olindi (Keshdan)")
+            await send_cached_items_as_album(message, file_ids, caption_base="📥 Yuklab olindi (Keshdan)")
             return
         except Exception as e:
             logger.error(f"Post keshni o'qishda xatolik: {e}")
@@ -72,30 +104,24 @@ async def handle_post_download(message: Message, session: AsyncSession, url: str
     status_msg = await message.answer("⚡ Media tekshirilmoqda, yuklash boshlanadi...")
     async with download_semaphore:
         try:
-            sent_file_ids = []
+            media_list = []
             
-            # Oqim qabul qilish va kelgan onida darhol yuborish
+            # Oqim qabul qilish va xotiraga yuklash
             async for item in ig_service.stream_instagram_media(url):
-                total = item.get("total", 1)
-                idx = item.get("index", 1)
-                caption = f"📥 Yuklab olindi ({idx}/{total})" if total > 1 else "📥 Yuklab olindi"
                 file = BufferedInputFile(item["data"], filename=f"media.{'mp4' if item['type'] == 'video' else 'jpg'}")
+                caption = "📥 Yuklab olindi" if len(media_list) == 0 else ""
                 
-                while True:
-                    try:
-                        if item["type"] == "video":
-                            sent_msg = await message.answer_video(file, caption=caption)
-                            sent_file_ids.append({"type": "video", "file_id": sent_msg.video.file_id})
-                        else:
-                            sent_msg = await message.answer_photo(file, caption=caption)
-                            sent_file_ids.append({"type": "photo", "file_id": sent_msg.photo[-1].file_id})
-                        
-                        await asyncio.sleep(0.5)
-                        break
-                    except TelegramRetryAfter as e:
-                        logger.warning(f"Flood control exceeded. Sleeping for {e.retry_after} seconds.")
-                        await asyncio.sleep(e.retry_after + 1)
+                if item["type"] == "video":
+                    media_list.append(InputMediaVideo(media=file, caption=caption))
+                else:
+                    media_list.append(InputMediaPhoto(media=file, caption=caption))
 
+            if not media_list:
+                await status_msg.edit_text("❌ Mediani yuklab olishni imkoni bo'lmadi.")
+                return
+
+            sent_file_ids = await send_media_in_chunks(message, media_list)
+            
             if not sent_file_ids:
                 await status_msg.edit_text("❌ Mediani yuklab olishni imkoni bo'lmadi.")
                 return
@@ -140,7 +166,7 @@ async def handle_story_download(message: Message, session: AsyncSession, usernam
         logger.info(f"Story cache hit for @{username}")
         try:
             file_ids = json.loads(cached_story.file_id)
-            await send_cached_items_individually(message, file_ids, caption=f"📥 @{username} hikoyasi (Keshdan)")
+            await send_cached_items_as_album(message, file_ids, caption_base=f"📥 @{username} hikoyasi (Keshdan)")
             return
         except Exception as e:
             logger.error(f"Story keshini o'qishda xatolik: {e}")
@@ -148,31 +174,24 @@ async def handle_story_download(message: Message, session: AsyncSession, usernam
     status_msg = await message.answer(f"⚡ @{username} profilidan hikoyalar tortilmoqda...")
     async with download_semaphore:
         try:
-            sent_file_ids = []
+            media_list = []
             
             async for item in ig_service.stream_user_stories(username):
-                total = item.get("total", 1)
-                idx = item.get("index", 1)
-                caption = f"📥 @{username} hikoyasi ({idx}/{total})" if total > 1 else f"📥 @{username} hikoyasi"
+                caption = f"📥 @{username} hikoyasi" if len(media_list) == 0 else ""
                 file = BufferedInputFile(item["data"], filename=f"story.{'mp4' if item['type'] == 'video' else 'jpg'}")
                 
-                while True:
-                    try:
-                        if item["type"] == "video":
-                            sent_msg = await message.answer_video(file, caption=caption)
-                            sent_file_ids.append({"type": "video", "file_id": sent_msg.video.file_id})
-                        else:
-                            sent_msg = await message.answer_photo(file, caption=caption)
-                            sent_file_ids.append({"type": "photo", "file_id": sent_msg.photo[-1].file_id})
-                            
-                        await asyncio.sleep(0.5)
-                        break
-                    except TelegramRetryAfter as e:
-                        logger.warning(f"Flood control exceeded. Sleeping for {e.retry_after} seconds.")
-                        await asyncio.sleep(e.retry_after + 1)
+                if item["type"] == "video":
+                    media_list.append(InputMediaVideo(media=file, caption=caption))
+                else:
+                    media_list.append(InputMediaPhoto(media=file, caption=caption))
                     
-            if not sent_file_ids:
+            if not media_list:
                 await status_msg.edit_text(f"❌ @{username} profilida so'nggi 24 soat ichida hikoyalar topilmadi yoki profil yopiq.")
+                return
+
+            sent_file_ids = await send_media_in_chunks(message, media_list)
+            
+            if not sent_file_ids:
                 return
             
             new_dl = Download(
