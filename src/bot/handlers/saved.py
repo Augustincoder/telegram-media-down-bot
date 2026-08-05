@@ -136,7 +136,7 @@ async def list_saved_profiles(
                 )
                 has_story = len(stories) > 0
             else:
-                stories = await userbot_service.get_peer_stories_info(p.ig_username)
+                stories = await userbot_service.get_peer_stories_info(p.ig_user_id or p.ig_username)
                 has_story = bool(stories)
 
             icon = "🟢" if has_story else "⚪"
@@ -193,7 +193,7 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                 None, ig_service.client.user_stories, profile.ig_user_id
             )
         else:
-            stories = await userbot_service.get_peer_stories_info(profile.ig_username)
+            stories = await userbot_service.get_peer_stories_info(profile.ig_user_id or profile.ig_username)
 
         if not stories:
             await status_msg.edit_text(
@@ -221,7 +221,8 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                 stories=stories,
                 username=profile.ig_username,
                 target_chat_id=callback.from_user.id,
-                status_msg=status_msg
+                status_msg=status_msg,
+                peer_id=profile.ig_user_id
             )
 
         await status_msg.edit_text(
