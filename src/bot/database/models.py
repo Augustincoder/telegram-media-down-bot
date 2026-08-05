@@ -8,6 +8,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 class Base(DeclarativeBase):
     pass
 
+
 class User(Base):
     __tablename__ = "users"
 
@@ -21,7 +22,9 @@ class User(Base):
 
     # Relationships
     downloads: Mapped[list["Download"]] = relationship("Download", back_populates="user")
-    pairing: Mapped[Optional["InstagramPairing"]] = relationship("InstagramPairing", back_populates="user", uselist=False)
+    pairing: Mapped[Optional["InstagramPairing"]] = relationship(
+        "InstagramPairing", back_populates="user", uselist=False
+    )
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, username={self.username})>"
@@ -52,9 +55,11 @@ class Download(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
     platform: Mapped[str] = mapped_column(String(20))  # e.g., 'instagram', 'telegram'
-    media_type: Mapped[str] = mapped_column(String(20)) # e.g., 'reels', 'story'
+    media_type: Mapped[str] = mapped_column(String(20))  # e.g., 'reels', 'story'
     url: Mapped[str] = mapped_column(String)
-    file_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True) # Cached Telegram file_id
+    file_id: Mapped[str | None] = mapped_column(
+        String, nullable=True, index=True
+    )  # Cached Telegram file_id
     downloaded_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -65,13 +70,14 @@ class Download(Base):
     def __repr__(self) -> str:
         return f"<Download(id={self.id}, platform={self.platform}, user_id={self.user_id})>"
 
+
 class SavedProfile(Base):
     __tablename__ = "saved_profiles"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"))
     ig_username: Mapped[str] = mapped_column(String, index=True)
-    ig_user_id: Mapped[str | None] = mapped_column(String, nullable=True) 
+    ig_user_id: Mapped[str | None] = mapped_column(String, nullable=True)
     added_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -80,6 +86,7 @@ class SavedProfile(Base):
 
     def __repr__(self) -> str:
         return f"<SavedProfile(user_id={self.user_id}, ig_username={self.ig_username})>"
+
 
 class StoryCache(Base):
     __tablename__ = "story_cache"

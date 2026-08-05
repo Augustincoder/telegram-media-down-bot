@@ -21,26 +21,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 async def main():
     logger.info("Starting bot initialization...")
-    
+
     # Init Database
     await init_models()
     logger.info("Database models initialized.")
-    
+
     # Init Instagram Service (Login using Session ID or Credentials)
     if config.instagram_session_id or (config.instagram_username and config.instagram_password):
         ig_service.login(
-            username=config.instagram_username, 
+            username=config.instagram_username,
             password=config.instagram_password,
-            session_id=config.instagram_session_id
+            session_id=config.instagram_session_id,
         )
-    
+
     # Setup Bot and Dispatcher
-    bot = Bot(
-        token=config.bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
-    )
+    bot = Bot(token=config.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
     # Register Middlewares
@@ -56,14 +54,15 @@ async def main():
         if config.instagram_session_id or (config.instagram_username and config.instagram_password):
             asyncio.create_task(start_instagram_polling(bot))
             asyncio.create_task(start_story_monitor(bot))
-            
+
         # Start Telegram Userbot (if configured)
         asyncio.create_task(userbot_service.start())
-            
+
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)
     finally:
         await bot.session.close()
+
 
 if __name__ == "__main__":
     try:

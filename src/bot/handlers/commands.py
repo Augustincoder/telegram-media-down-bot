@@ -11,6 +11,7 @@ from bot.database.models import User
 logger = logging.getLogger(__name__)
 router = Router(name="commands")
 
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, session: AsyncSession):
     user_id = message.from_user.id
@@ -22,19 +23,16 @@ async def cmd_start(message: Message, session: AsyncSession):
     user = result.scalar_one_or_none()
 
     if not user:
-        user = User(
-            id=user_id,
-            username=username,
-            full_name=full_name
-        )
+        user = User(id=user_id, username=username, full_name=full_name)
         session.add(user)
         await session.commit()
         logger.info(f"New user registered: {full_name} ({user_id})")
-    
+
     await message.answer(
         f"Assalomu alaykum, {full_name}!\n\n"
         "Menga Instagram Reels yoki Post linkini yuboring va men sizga uni videokorinisihda yuklab beraman!"
     )
+
 
 @router.message(Command("help"))
 async def cmd_help(message: Message):

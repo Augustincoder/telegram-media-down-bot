@@ -12,5 +12,5 @@ __all__ = [
     "engine",
     "AsyncSessionLocal",
     "init_models",
-    "get_session"
+    "get_session",
 ]

@@ -8,10 +8,12 @@ from bot.utils.validators import INSTAGRAM_LINK_PATTERN
 
 logger = logging.getLogger(__name__)
 
+
 def get_challenge_code(username, choice):
     mode = "SMS" if choice == 1 else "Email"
     print(f"\n[DIQQAT] Instagram {username} uchun tasdiqlash kodini {mode} orqali yubordi!")
     return input(f"Iltimos, {mode} ga kelgan 6 xonali kodni terminalga kiriting: ")
+
 
 class InstagramService:
     def __init__(self):
@@ -19,7 +21,9 @@ class InstagramService:
         self.client.challenge_code_handler = get_challenge_code
         self.is_logged_in = False
 
-    def login(self, username: str | None, password: str | None, session_id: str | None = None) -> bool:
+    def login(
+        self, username: str | None, password: str | None, session_id: str | None = None
+    ) -> bool:
         if session_id:
             logger.info("Session ID topildi. Uni ishlatib kirishga urinamiz...")
             try:
@@ -33,8 +37,9 @@ class InstagramService:
 
         if not username or not password:
             return False
-            
+
         import pathlib
+
         session_file = pathlib.Path(f"instagram_session_{username}.json")
         try:
             if session_file.exists():
@@ -55,7 +60,7 @@ class InstagramService:
         total = len(media_items)
         sem = asyncio.Semaphore(2)
         loop = asyncio.get_running_loop()
-        
+
         def fetch_bytes(download_url: str) -> bytes:
             resp = self.client.public.get(download_url, stream=True, timeout=15)
             resp.raise_for_status()
@@ -76,7 +81,9 @@ class InstagramService:
                         return None
                     return {"type": item["type"], "data": data}
                 except Exception as e:
-                    logger.error(f"Error downloading item {item['url'][:50]}...: {type(e).__name__} {e}")
+                    logger.error(
+                        f"Error downloading item {item['url'][:50]}...: {type(e).__name__} {e}"
+                    )
                     return None
 
         # Barcha vazifalarni orqa fonda boshlash
@@ -93,7 +100,7 @@ class InstagramService:
     async def stream_instagram_media(self, url: str):
         """Bitta post/reel/karusel medialarini oqim (stream) qilib qaytaradi."""
         loop = asyncio.get_running_loop()
-        
+
         match = INSTAGRAM_LINK_PATTERN.search(url)
         if not match:
             raise ValueError("Noto'g'ri havola formati")
@@ -119,7 +126,7 @@ class InstagramService:
                     media_items.append({"type": "photo", "url": str(res.thumbnail_url)})
                 elif res.media_type == 2:
                     media_items.append({"type": "video", "url": str(res.video_url)})
-        
+
         if not media_items:
             raise ValueError("Post ichida hech qanday tasdiqlangan media topilmadi")
 
@@ -129,7 +136,7 @@ class InstagramService:
     async def stream_user_stories(self, username: str):
         """Berilgan foydalanuvchining hikoyalarini oqim (stream) qilib qaytaradi."""
         loop = asyncio.get_running_loop()
-        
+
         def fetch_stories():
             user_id = self.client.user_id_from_username(username)
             return self.client.user_stories(user_id)
@@ -139,7 +146,7 @@ class InstagramService:
         except Exception as e:
             logger.error(f"Error fetching stories for {username}: {e}")
             return
-            
+
         if not stories:
             return
 
@@ -149,8 +156,9 @@ class InstagramService:
                 media_items.append({"type": "photo", "url": str(story.thumbnail_url)})
             elif story.media_type == 2:
                 media_items.append({"type": "video", "url": str(story.video_url)})
-                
+
         async for item in self._stream_media_items_concurrently(media_items):
             yield item
+
 
 ig_service = InstagramService()

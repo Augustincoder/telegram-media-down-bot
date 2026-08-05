@@ -15,9 +15,8 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///bot_database.db")
 engine = create_async_engine(DATABASE_URL, echo=False)
 
 # Session maker to be used in handlers or middleware
-AsyncSessionLocal = async_sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
-)
+AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
 
 async def init_models():
     """
@@ -28,6 +27,7 @@ async def init_models():
         # For production with Alembic, we wouldn't use create_all()
         # but for this MVP SQLite setup it is perfectly fine.
         await conn.run_sync(Base.metadata.create_all)
+
 
 async def get_session() -> AsyncSession:
     """Dependency for getting DB session."""
