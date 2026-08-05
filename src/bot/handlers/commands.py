@@ -67,7 +67,7 @@ async def cmd_help(message: Message):
         "2️⃣ Yopiq profillardan tortish uchun: <b>🔗 Akkaunt ulash</b> menyusi orqali profilingizni botga ulang.\n"
         "3️⃣ Telegram hikoyalari (Story) yoki Instagram hikoyalarini yuklash uchun shunchaki o'sha insonning "
         "<b>username</b> (masalan: @durov) ini yuboring.\n\n"
-        "Sevimlilarni saqlab qolish uchun /save <username> komandasidan foydalaning!"
+        "Sevimlilarni saqlab qolish uchun /save [username] komandasidan foydalaning!"
     )
     await message.answer(text, reply_markup=get_main_menu())
 

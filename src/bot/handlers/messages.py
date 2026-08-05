@@ -378,9 +378,9 @@ async def process_text_message(message: Message, session: AsyncSession):
         )
 
     if text == "💾 Saqlangan profillar":
-        from bot.handlers.saved import saved_profiles_handler
+        from bot.handlers.saved import list_saved_profiles
 
-        return await saved_profiles_handler(message, session)
+        return await list_saved_profiles(message, session)
 
     if text == "🔗 Akkaunt ulash":
         from bot.handlers.pairing import link_instagram_handler
