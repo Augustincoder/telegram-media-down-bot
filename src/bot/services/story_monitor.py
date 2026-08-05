@@ -1,12 +1,11 @@
 import asyncio
 import logging
-import os
 
 from aiogram import Bot
 from sqlalchemy.future import select
 
 from bot.config import config
-from bot.database.models import SavedProfile, StoryCache
+from bot.database.models import SavedProfile
 from bot.database.session import AsyncSessionLocal
 from bot.services.instagram import ig_service
 from bot.services.telegram_userbot import userbot_service

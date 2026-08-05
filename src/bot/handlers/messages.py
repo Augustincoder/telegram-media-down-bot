@@ -3,11 +3,10 @@ import contextlib
 import json
 import logging
 import os
-from datetime import UTC, datetime, timedelta
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramRetryAfter
-from aiogram.types import BufferedInputFile, CallbackQuery, FSInputFile, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -212,7 +211,6 @@ async def handle_telegram_story(
 
     status_msg = await message.answer("⚡ Telegram hikoyasi tortilmoqda...")
 
-    import os
 
     file_path = f"downloads/tg_story_{peer}_{story_id}.mp4"
     os.makedirs("downloads", exist_ok=True)
