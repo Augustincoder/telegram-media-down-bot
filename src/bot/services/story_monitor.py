@@ -69,15 +69,22 @@ async def start_story_monitor(bot: Bot):
                                 if cached:
                                     continue  # Allaqachon tortilgan
 
-                                media_url = f"https://instagram.com/stories/{ig_username}/{story_pk}/"
                                 from aiogram.types import BufferedInputFile
 
                                 logger.info(
                                     f"Yangi IG hikoya topildi: {ig_username} -> {story_pk}"
                                 )
 
-                                async for item in ig_service.stream_instagram_media(
-                                    media_url
+                                media_items = []
+                                if story.media_type == 1:
+                                    media_items.append(
+                                        {"type": "photo", "url": str(story.thumbnail_url)}
+                                    )
+                                elif story.media_type == 2:
+                                    media_items.append({"type": "video", "url": str(story.video_url)})
+
+                                async for item in ig_service._stream_media_items_concurrently(
+                                    media_items
                                 ):
                                     file = BufferedInputFile(
                                         item["data"],
