@@ -157,92 +157,108 @@ async def handle_post_download(message: Message, session: AsyncSession, url: str
 
 
 async def handle_story_download(message: Message, session: AsyncSession, username: str):
-    """Hikoyalarni (Stories) keshlash va oqim (stream) sifatida ketma-ket yuborish"""
+    """Instagram hikoyalarini (Stories) yuklash va kanal orqali keshlash"""
     user_id = message.from_user.id
 
-    time_threshold = datetime.now(UTC) - timedelta(minutes=10)
-    result = await session.execute(
-        select(Download)
-        .where(Download.url == f"story_{username}")
-        .where(Download.file_id is not None)
-        .where(Download.downloaded_at >= time_threshold)
-        .order_by(Download.downloaded_at.desc())
-        .limit(1)
+    status_msg = await message.answer(
+        f"🔍 <b>@{username} 📸</b> hikoyalari izlanmoqda..."
     )
-    cached_story = result.scalar_one_or_none()
+    loop = asyncio.get_running_loop()
+    try:
+        user_info = await loop.run_in_executor(
+            None, ig_service.client.user_info_by_username, username
+        )
+        ig_user_id = str(user_info.pk)
 
-    if cached_story and cached_story.file_id:
-        logger.info(f"Story cache hit for @{username}")
-        try:
-            file_ids = json.loads(cached_story.file_id)
-            await send_cached_items_individually(
-                message, file_ids, caption_base=f"📥 @{username} hikoyasi (Keshdan)"
+        stories = await loop.run_in_executor(
+            None, ig_service.client.user_stories, ig_user_id
+        )
+        if not stories:
+            await status_msg.edit_text(
+                f"❌ <b>@{username} 📸</b> hozirda hech qanday hikoya joylamagan."
             )
             return
-        except Exception as e:
-            logger.error(f"Story keshini o'qishda xatolik: {e}")
 
-    status_msg = await message.answer(
-        f"⚡ @{username} profilidan hikoyalar tortilmoqda..."
-    )
-    async with download_semaphore:
-        try:
-            sent_file_ids = []
+        total = len(stories)
+        bot = message.bot
+        sent_count = 0
 
-            async for item in ig_service.stream_user_stories(username):
-                total = item.get("total", 1)
-                idx = item.get("index", 1)
-                caption = (
-                    f"📥 @{username} hikoyasi ({idx}/{total})"
-                    if total > 1
-                    else f"📥 @{username} hikoyasi"
+        for idx, story in enumerate(stories, 1):
+            await status_msg.edit_text(
+                f"📥 <b>@{username} 📸</b>: {idx}/{total} - hikoya tayyorlanmoqda..."
+            )
+            story_pk = str(story.pk)
+
+            cache_res = await session.execute(
+                select(StoryCache).where(
+                    StoryCache.story_id == story_pk,
+                    StoryCache.platform == "instagram",
                 )
+            )
+            cached = cache_res.scalar_one_or_none()
+
+            if cached and config.storage_channel_id:
+                try:
+                    await bot.copy_message(
+                        chat_id=user_id,
+                        from_chat_id=config.storage_channel_id,
+                        message_id=cached.telegram_msg_id,
+                    )
+                    sent_count += 1
+                    continue
+                except Exception:
+                    pass
+
+            media_items = []
+            if story.media_type == 1:
+                media_items.append({"type": "photo", "url": str(story.thumbnail_url)})
+            elif story.media_type == 2:
+                media_items.append({"type": "video", "url": str(story.video_url)})
+
+            async for item in ig_service._stream_media_items_concurrently(media_items):
                 file = BufferedInputFile(
                     item["data"],
                     filename=f"story.{'mp4' if item['type'] == 'video' else 'jpg'}",
                 )
 
-                while True:
-                    try:
-                        if item["type"] == "video":
-                            sent_msg = await message.answer_video(file, caption=caption)
-                            sent_file_ids.append(
-                                {"type": "video", "file_id": sent_msg.video.file_id}
-                            )
-                        else:
-                            sent_msg = await message.answer_photo(file, caption=caption)
-                            sent_file_ids.append(
-                                {"type": "photo", "file_id": sent_msg.photo[-1].file_id}
-                            )
+                if config.storage_channel_id:
+                    msg = await (
+                        bot.send_video if item["type"] == "video" else bot.send_photo
+                    )(
+                        chat_id=config.storage_channel_id,
+                        video=file if item["type"] == "video" else None,
+                        photo=file if item["type"] == "photo" else None,
+                    )
+                    new_cache = StoryCache(
+                        story_id=story_pk,
+                        telegram_msg_id=msg.message_id,
+                        platform="instagram",
+                    )
+                    session.add(new_cache)
+                    await session.commit()
 
-                        await asyncio.sleep(0.5)
-                        break
-                    except TelegramRetryAfter as e:
-                        logger.warning(
-                            f"Flood control exceeded. Sleeping for {e.retry_after} seconds."
-                        )
-                        await asyncio.sleep(e.retry_after + 1)
+                    await bot.copy_message(
+                        chat_id=user_id,
+                        from_chat_id=config.storage_channel_id,
+                        message_id=msg.message_id,
+                    )
+                else:
+                    await (
+                        bot.send_video if item["type"] == "video" else bot.send_photo
+                    )(
+                        user_id,
+                        video=file if item["type"] == "video" else None,
+                        photo=file if item["type"] == "photo" else None,
+                    )
+                sent_count += 1
 
-            if not sent_file_ids:
-                await status_msg.edit_text(
-                    f"❌ @{username} profilida so'nggi 24 soat ichida hikoyalar topilmadi yoki profil yopiq."
-                )
-                return
+        await status_msg.edit_text(
+            f"✅ <b>@{username} 📸</b>: Barcha {sent_count} ta hikoyalar yuborildi!"
+        )
 
-            new_dl = Download(
-                user_id=user_id,
-                platform="instagram",
-                media_type="stories",
-                url=f"story_{username}",
-                file_id=json.dumps(sent_file_ids),
-            )
-            session.add(new_dl)
-            await session.commit()
-
-            await status_msg.delete()
-        except Exception as e:
-            logger.error(f"Error processing stories for {username}: {e}")
-            await status_msg.edit_text("❌ Hikoyalarni yuklashda xatolik yuz berdi.")
+    except Exception as e:
+        logger.error(f"Error processing stories for {username}: {e}")
+        await status_msg.edit_text(f"❌ Hikoyalarni yuklashda xatolik yuz berdi: {e}")
 
 
 async def handle_telegram_story(
@@ -291,56 +307,107 @@ async def handle_telegram_story(
         )
 
 
-async def handle_all_telegram_stories(message: Message, peer: str):
-    """Barcha Telegram hikoyalarini yuklash"""
+async def handle_all_telegram_stories(
+    message: Message, session: AsyncSession, peer: str
+):
+    """Barcha Telegram hikoyalarini yuklash va kanal orqali keshlash"""
     if not userbot_service.is_connected:
         await message.answer(
             "❌ Telegram Userbot ulanmagan. Iltimos, adminlarga murojaat qiling."
         )
         return
 
-    status_msg = await message.answer(
-        f"⚡ @{peer} ning barcha Telegram hikoyalari qidirilmoqda..."
-    )
-
-    os.makedirs("downloads", exist_ok=True)
+    user_id = message.from_user.id
+    status_msg = await message.answer(f"🔍 <b>@{peer} ✈️</b> hikoyalari izlanmoqda...")
 
     try:
-        found = False
-        async for file in userbot_service.stream_all_stories(peer, "downloads"):
-            found = True
-            media = FSInputFile(file)
-
-            try:
-                while True:
-                    try:
-                        if file.endswith(".mp4"):
-                            await message.answer_video(
-                                media, caption=f"📥 @{peer} Telegram hikoyasi"
-                            )
-                        else:
-                            await message.answer_photo(
-                                media, caption=f"📥 @{peer} Telegram hikoyasi"
-                            )
-                        await asyncio.sleep(0.5)
-                        break
-                    except TelegramRetryAfter as e:
-                        logger.warning(
-                            f"Flood control exceeded. Sleeping for {e.retry_after} seconds."
-                        )
-                        await asyncio.sleep(e.retry_after + 1)
-            finally:
-                # Jo'natib bo'lingach darhol o'chiramiz
-                with contextlib.suppress(OSError):
-                    os.remove(file)
-
-        if not found:
+        stories = await userbot_service.get_peer_stories_info(peer)
+        if not stories:
             await status_msg.edit_text(
-                f"❌ @{peer} da aktiv hikoyalar topilmadi yoki ko'ra olmayman."
+                f"❌ <b>@{peer} ✈️</b> hozirda hech qanday hikoya joylamagan."
             )
             return
 
-        await status_msg.delete()
+        total = len(stories)
+        bot = message.bot
+        sent_count = 0
+        import os
+
+        for idx, story in enumerate(stories, 1):
+            await status_msg.edit_text(
+                f"📥 <b>@{peer} ✈️</b>: {idx}/{total} - hikoya tayyorlanmoqda..."
+            )
+            story_id = str(story.id)
+
+            cache_res = await session.execute(
+                select(StoryCache).where(
+                    StoryCache.story_id == story_id,
+                    StoryCache.platform == "telegram",
+                )
+            )
+            cached = cache_res.scalar_one_or_none()
+
+            if cached and config.storage_channel_id:
+                try:
+                    await bot.copy_message(
+                        chat_id=user_id,
+                        from_chat_id=config.storage_channel_id,
+                        message_id=cached.telegram_msg_id,
+                    )
+                    sent_count += 1
+                    continue
+                except Exception:
+                    pass
+
+            file_path = f"downloads/tg_story_{peer}_{story_id}.mp4"
+            os.makedirs("downloads", exist_ok=True)
+            try:
+                downloaded = await userbot_service.download_story(
+                    peer, story.id, file_path
+                )
+                if downloaded:
+                    from aiogram.types import FSInputFile
+
+                    media = FSInputFile(downloaded)
+                    is_video = downloaded.endswith(".mp4")
+
+                    if config.storage_channel_id:
+                        msg = await (bot.send_video if is_video else bot.send_photo)(
+                            chat_id=config.storage_channel_id,
+                            video=media if is_video else None,
+                            photo=media if not is_video else None,
+                        )
+                        new_cache = StoryCache(
+                            story_id=story_id,
+                            telegram_msg_id=msg.message_id,
+                            platform="telegram",
+                        )
+                        session.add(new_cache)
+                        await session.commit()
+
+                        await bot.copy_message(
+                            chat_id=user_id,
+                            from_chat_id=config.storage_channel_id,
+                            message_id=msg.message_id,
+                        )
+                    else:
+                        await (bot.send_video if is_video else bot.send_photo)(
+                            user_id,
+                            video=media if is_video else None,
+                            photo=media if not is_video else None,
+                        )
+                    sent_count += 1
+            finally:
+                import contextlib
+
+                with contextlib.suppress(OSError):
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+
+        await status_msg.edit_text(
+            f"✅ <b>@{peer} ✈️</b>: Barcha {sent_count} ta hikoyalar yuborildi!"
+        )
+
     except Exception as e:
         logger.error(f"Barcha Telegram hikoyalarini yuklashda xato: {e}")
         await status_msg.edit_text(
@@ -361,15 +428,44 @@ async def process_down_ig(callback: CallbackQuery, session: AsyncSession):
 
 
 @router.callback_query(F.data.startswith("down_tg_"))
-async def process_down_tg(callback: CallbackQuery):
+async def process_down_tg(callback: CallbackQuery, session: AsyncSession):
     peer = callback.data.split("down_tg_")[1]
     await callback.message.delete()
-    await handle_all_telegram_stories(callback.message, peer)
+    await handle_all_telegram_stories(callback.message, session, peer)
 
 
 @router.message(F.text)
 async def process_text_message(message: Message, session: AsyncSession):
-    text = message.text
+    text = message.text.strip()
+
+    if text.lower() in ["stch", "/stch"]:
+        if not message.reply_to_message:
+            await message.answer(
+                "Iltimos, kanalga saqlamoqchi bo'lgan media xabarga reply qilib yuboring."
+            )
+            return
+
+        if not config.storage_channel_id:
+            await message.answer(
+                "Xotira kanali sozlanmagan. Iltimos, bot sozlamalarida STORAGE_CHANNEL_ID ni kiriting."
+            )
+            return
+
+        reply = message.reply_to_message
+        if not (reply.video or reply.photo or reply.animation or reply.document):
+            await message.answer("Faqat media fayllarni kanalga saqlash mumkin.")
+            return
+
+        try:
+            await message.bot.copy_message(
+                chat_id=config.storage_channel_id,
+                from_chat_id=message.chat.id,
+                message_id=reply.message_id,
+            )
+            await message.answer("✅ Media muvaffaqiyatli xotira kanaliga saqlandi!")
+        except Exception as e:
+            await message.answer(f"❌ Xatolik yuz berdi: {e}")
+        return
 
     # Menyu tugmalarini ushlash
     if text == "📥 Yuklab olish":
