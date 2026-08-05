@@ -105,8 +105,11 @@ async def save_profile_handler(message: Message, session: AsyncSession):
 
 
 @router.message(Command("saved"))
-async def list_saved_profiles(message: Message, session: AsyncSession):
-    user_id = message.chat.id
+async def list_saved_profiles(
+    message: Message, session: AsyncSession, user_id: int | None = None
+):
+    if user_id is None:
+        user_id = message.from_user.id
     result = await session.execute(
         select(SavedProfile).where(SavedProfile.user_id == user_id)
     )
@@ -160,7 +163,9 @@ async def refresh_saved(callback: CallbackQuery, session: AsyncSession):
         await callback.message.delete()
     except Exception:
         pass
-    await list_saved_profiles(callback.message, session)
+    await list_saved_profiles(
+        callback.message, session, user_id=callback.from_user.id
+    )
     await callback.answer()
 
 
