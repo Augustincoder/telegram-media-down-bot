@@ -58,209 +58,216 @@ async def start_instagram_polling(bot: Bot):
                             continue
 
                         # Har bir thread ning faqat eng oxirgi xabarini olamiz
-                        msg = thread.messages[0]
+                        new_msgs = []
+                        for m in thread.messages:
+                            if m.id in processed_message_ids:
+                                break
+                            m_time = m.timestamp.replace(tzinfo=None)
+                            if m_time < bot_start_time:
+                                processed_message_ids.add(m.id)
+                                break
+                            new_msgs.append(m)
 
-                        if msg.id in processed_message_ids:
-                            continue
+                        for msg in reversed(new_msgs):
+                            if msg.user_id == ig_service.client.user_id:
+                                processed_message_ids.add(msg.id)
+                                continue
 
-                        # Agar xabar bot ishga tushishidan oldin kelgan bo'lsa, tashlab o'tamiz
-                        msg_time = msg.timestamp.replace(tzinfo=None)
-                        if msg_time < bot_start_time:
-                            processed_message_ids.add(msg.id)
-                            continue
+                            found_new_messages = True
+                            sender_id = str(msg.user_id)
 
-                        # Agar biz yuborgan bo'lsak, tashlab o'tamiz
-                        if msg.user_id == ig_service.client.user_id:
-                            processed_message_ids.add(msg.id)
-                            continue
+                            # LOGIKA 1: PAIRING KOD
+                            if msg.item_type == "text":
+                                text = msg.text.strip()
+                                if re.match(r"^\d{6}$", text):
+                                    code = text
+                                    tg_user_id = pairing_cache.verify_code(code)
 
-                        found_new_messages = True
-                        sender_id = str(msg.user_id)
+                                    if tg_user_id:
+                                        # Try to get username for better UI
+                                        ig_username = None
+                                        try:
+                                            user_info = await loop.run_in_executor(
+                                                None, ig_service.client.user_info, sender_id
+                                            )
+                                            ig_username = user_info.username
+                                        except Exception as e:
+                                            logger.warning(
+                                                f"Foydalanuvchi nomini olishda xatolik: {e}"
+                                            )
 
-                        # LOGIKA 1: PAIRING KOD
-                        if msg.item_type == "text":
-                            text = msg.text.strip()
-                            if re.match(r"^\d{6}$", text):
-                                code = text
-                                tg_user_id = pairing_cache.verify_code(code)
-
-                                if tg_user_id:
-                                    # Try to get username for better UI
-                                    ig_username = None
-                                    try:
-                                        user_info = await loop.run_in_executor(
-                                            None, ig_service.client.user_info, sender_id
+                                        # Bog'lanishni saqlash
+                                        new_pairing = InstagramPairing(
+                                            user_id=tg_user_id,
+                                            instagram_user_id=sender_id,
+                                            instagram_username=ig_username,
+                                            is_active=True,
                                         )
-                                        ig_username = user_info.username
-                                    except Exception as e:
-                                        logger.warning(f"Foydalanuvchi nomini olishda xatolik: {e}")
+                                        session.add(new_pairing)
+                                        try:
+                                            await session.commit()
+                                            logger.info(
+                                                f"Successfully paired IG {sender_id} with TG {tg_user_id}"
+                                            )
 
-                                    # Bog'lanishni saqlash
-                                    new_pairing = InstagramPairing(
-                                        user_id=tg_user_id,
-                                        instagram_user_id=sender_id,
-                                        instagram_username=ig_username,
-                                        is_active=True,
-                                    )
-                                    session.add(new_pairing)
-                                    try:
-                                        await session.commit()
-                                        logger.info(
-                                            f"Successfully paired IG {sender_id} with TG {tg_user_id}"
-                                        )
+                                            # Foydalanuvchiga Telegram orqali xabar
+                                            await bot.send_message(
+                                                tg_user_id,
+                                                f"🎉 <b>Muvaffaqiyatli!</b>\nInstagram akkauntingiz bog'landi. Endi do'stlaringiz sizga Direct orqali ulashgan videolarni ham xuddi shu <b>{config.instagram_username}</b> profiliga DM qilib tashlang va men uni shu yerga yuklab beraman!",
+                                            )
 
-                                        # Foydalanuvchiga Telegram orqali xabar
-                                        await bot.send_message(
-                                            tg_user_id,
-                                            f"🎉 <b>Muvaffaqiyatli!</b>\nInstagram akkauntingiz bog'landi. Endi do'stlaringiz sizga Direct orqali ulashgan videolarni ham xuddi shu <b>{config.instagram_username}</b> profiliga DM qilib tashlang va men uni shu yerga yuklab beraman!",
-                                        )
+                                            # Foydalanuvchiga Instagram orqali javob
+                                            await loop.run_in_executor(
+                                                None,
+                                                ig_service.client.direct_send,
+                                                "Muvaffaqiyatli bog'landi ✅ Endi videolarni Direct orqali shu yerga yuborishingiz mumkin.",
+                                                [sender_id],
+                                            )
 
-                                        # Foydalanuvchiga Instagram orqali javob
-                                        await loop.run_in_executor(
-                                            None,
-                                            ig_service.client.direct_send,
-                                            "Muvaffaqiyatli bog'landi ✅ Endi videolarni Direct orqali shu yerga yuborishingiz mumkin.",
-                                            [sender_id],
-                                        )
+                                        except Exception as e:
+                                            logger.error(f"Pairing saqlashda xato: {e}")
+                                            await session.rollback()
 
-                                    except Exception as e:
-                                        logger.error(f"Pairing saqlashda xato: {e}")
-                                        await session.rollback()
+                            # LOGIKA 2: FORWARD QILINGAN REELS/VIDEO
+                            elif msg.item_type in [
+                                "clip",
+                                "media_share",
+                                "xma_media_share",
+                                "xma_clip",
+                                "xma_story_share",
+                                "story_share",
+                            ]:
+                                # Bu media qaysi foydalanuvchidan keldi? (DB dan tekshiramiz)
+                                from sqlalchemy.future import select
 
-                        # LOGIKA 2: FORWARD QILINGAN REELS/VIDEO
-                        elif msg.item_type in [
-                            "clip",
-                            "media_share",
-                            "xma_media_share",
-                            "xma_clip",
-                            "xma_story_share",
-                            "story_share",
-                        ]:
-                            # Bu media qaysi foydalanuvchidan keldi? (DB dan tekshiramiz)
-                            from sqlalchemy.future import select
+                                result = await session.execute(
+                                    select(InstagramPairing)
+                                    .where(InstagramPairing.instagram_user_id == sender_id)
+                                    .limit(1)
+                                )
+                                pairing = result.scalar_one_or_none()
 
-                            result = await session.execute(
-                                select(InstagramPairing)
-                                .where(InstagramPairing.instagram_user_id == sender_id)
-                                .limit(1)
-                            )
-                            pairing = result.scalar_one_or_none()
+                                if pairing and pairing.is_active:
+                                    tg_user_id = pairing.user_id
 
-                            if pairing and pairing.is_active:
-                                tg_user_id = pairing.user_id
+                                    media_url = None
 
-                                media_url = None
-
-                                if msg.item_type in [
-                                    "xma_clip",
-                                    "xma_media_share",
-                                    "xma_story_share",
-                                ]:
-                                    if (
-                                        hasattr(msg, "xma_share")
-                                        and msg.xma_share
-                                        and isinstance(msg.xma_share, dict)
-                                    ):
-                                        media_url = msg.xma_share.get(
-                                            "video_url"
-                                        ) or msg.xma_share.get("target_url")
-                                    if (
-                                        not media_url
-                                        and hasattr(msg, "raw_xma")
-                                        and msg.raw_xma
-                                        and isinstance(msg.raw_xma, dict)
-                                    ):
-                                        for key in msg.raw_xma:
-                                            if (
-                                                isinstance(msg.raw_xma[key], list)
-                                                and len(msg.raw_xma[key]) > 0
-                                            ):
-                                                media_url = msg.raw_xma[key][0].get("target_url")
-                                                if media_url:
-                                                    break
-
-                                elif msg.item_type == "clip" and hasattr(msg, "clip") and msg.clip:
-                                    media_id = getattr(msg.clip, "id", None) or getattr(
-                                        msg.clip, "pk", None
-                                    )
-                                    if media_id:
-                                        media_url = f"https://instagram.com/p/{str(media_id).split('_')[0]}/"
-
-                                elif (
-                                    msg.item_type in ["media_share", "story_share"]
-                                    and hasattr(msg, "media_share")
-                                    and msg.media_share
-                                ):
-                                    media_id = getattr(msg.media_share, "id", None) or getattr(
-                                        msg.media_share, "pk", None
-                                    )
-                                    if media_id:
-                                        media_url = f"https://instagram.com/p/{str(media_id).split('_')[0]}/"
-
-                                # Agar url topilsa tortishni boshlaymiz
-                                if media_url:
-                                    logger.info(
-                                        f"Downloading forwarded media {media_url} for TG {tg_user_id}"
-                                    )
-                                    try:
-                                        # IG Service orqali stream yuklab Telegramga jo'natamiz
-                                        from aiogram.exceptions import TelegramRetryAfter
-                                        from aiogram.types import BufferedInputFile
-
-                                        await bot.send_message(
-                                            tg_user_id,
-                                            "📥 Uzatma (Forward) qabul qilindi, yuklanmoqda...",
-                                        )
-
-                                        async for item in ig_service.stream_instagram_media(
-                                            media_url
+                                    if msg.item_type in [
+                                        "xma_clip",
+                                        "xma_media_share",
+                                        "xma_story_share",
+                                    ]:
+                                        if (
+                                            hasattr(msg, "xma_share")
+                                            and msg.xma_share
+                                            and isinstance(msg.xma_share, dict)
                                         ):
-                                            total = item.get("total", 1)
-                                            idx = item.get("index", 1)
-                                            caption = (
-                                                f"📥 Direct media ({idx}/{total})"
-                                                if total > 1
-                                                else "📥 Direct media"
-                                            )
-
-                                            file = BufferedInputFile(
-                                                item["data"],
-                                                filename=f"media.{'mp4' if item['type'] == 'video' else 'jpg'}",
-                                            )
-
-                                            while True:
-                                                try:
-                                                    if item["type"] == "video":
-                                                        await bot.send_video(
-                                                            tg_user_id, file, caption=caption
-                                                        )
-                                                    else:
-                                                        await bot.send_photo(
-                                                            tg_user_id, file, caption=caption
-                                                        )
-
-                                                    await asyncio.sleep(0.5)
-                                                    break
-                                                except TelegramRetryAfter as e:
-                                                    logger.warning(
-                                                        f"Flood control in DM poll. Sleeping {e.retry_after}s."
+                                            media_url = msg.xma_share.get(
+                                                "video_url"
+                                            ) or msg.xma_share.get("target_url")
+                                        if (
+                                            not media_url
+                                            and hasattr(msg, "raw_xma")
+                                            and msg.raw_xma
+                                            and isinstance(msg.raw_xma, dict)
+                                        ):
+                                            for key in msg.raw_xma:
+                                                if (
+                                                    isinstance(msg.raw_xma[key], list)
+                                                    and len(msg.raw_xma[key]) > 0
+                                                ):
+                                                    media_url = msg.raw_xma[key][0].get(
+                                                        "target_url"
                                                     )
-                                                    await asyncio.sleep(e.retry_after + 1)
+                                                    if media_url:
+                                                        break
 
-                                    except Exception as e:
-                                        logger.error(
-                                            f"Forward qilingan mediani tortishda xato: {e}"
+                                    elif (
+                                        msg.item_type == "clip"
+                                        and hasattr(msg, "clip")
+                                        and msg.clip
+                                    ):
+                                        media_id = getattr(msg.clip, "id", None) or getattr(
+                                            msg.clip, "pk", None
                                         )
-                                        await bot.send_message(
-                                            tg_user_id,
-                                            "❌ Mediani tortishda xatolik yuz berdi. Balki uzatma (media) yashiringan yoki o'chirilgandir.",
-                                        )
+                                        if media_id:
+                                            media_url = f"https://instagram.com/p/{str(media_id).split('_')[0]}/"
 
-                        # Xabarni o'qilgan belgisi
-                        processed_message_ids.add(msg.id)
-                        # Xotirani tejash uchun set hajmini cheklash (1000 tadan oshmasin)
-                        if len(processed_message_ids) > 1000:
-                            processed_message_ids = set(list(processed_message_ids)[-500:])
+                                    elif (
+                                        msg.item_type in ["media_share", "story_share"]
+                                        and hasattr(msg, "media_share")
+                                        and msg.media_share
+                                    ):
+                                        media_id = getattr(msg.media_share, "id", None) or getattr(
+                                            msg.media_share, "pk", None
+                                        )
+                                        if media_id:
+                                            media_url = f"https://instagram.com/p/{str(media_id).split('_')[0]}/"
+
+                                    # Agar url topilsa tortishni boshlaymiz
+                                    if media_url:
+                                        logger.info(
+                                            f"Downloading forwarded media {media_url} for TG {tg_user_id}"
+                                        )
+                                        try:
+                                            # IG Service orqali stream yuklab Telegramga jo'natamiz
+                                            from aiogram.exceptions import TelegramRetryAfter
+                                            from aiogram.types import BufferedInputFile
+
+                                            await bot.send_message(
+                                                tg_user_id,
+                                                "📥 Uzatma (Forward) qabul qilindi, yuklanmoqda...",
+                                            )
+
+                                            async for item in ig_service.stream_instagram_media(
+                                                media_url
+                                            ):
+                                                total = item.get("total", 1)
+                                                idx = item.get("index", 1)
+                                                caption = (
+                                                    f"📥 Direct media ({idx}/{total})"
+                                                    if total > 1
+                                                    else "📥 Direct media"
+                                                )
+
+                                                file = BufferedInputFile(
+                                                    item["data"],
+                                                    filename=f"media.{'mp4' if item['type'] == 'video' else 'jpg'}",
+                                                )
+
+                                                while True:
+                                                    try:
+                                                        if item["type"] == "video":
+                                                            await bot.send_video(
+                                                                tg_user_id, file, caption=caption
+                                                            )
+                                                        else:
+                                                            await bot.send_photo(
+                                                                tg_user_id, file, caption=caption
+                                                            )
+
+                                                        await asyncio.sleep(0.5)
+                                                        break
+                                                    except TelegramRetryAfter as e:
+                                                        logger.warning(
+                                                            f"Flood control in DM poll. Sleeping {e.retry_after}s."
+                                                        )
+                                                        await asyncio.sleep(e.retry_after + 1)
+
+                                        except Exception as e:
+                                            logger.error(
+                                                f"Forward qilingan mediani tortishda xato: {e}"
+                                            )
+                                            await bot.send_message(
+                                                tg_user_id,
+                                                "❌ Mediani tortishda xatolik yuz berdi. Balki uzatma (media) yashiringan yoki o'chirilgandir.",
+                                            )
+
+                            # Xabarni o'qilgan belgisi
+                            processed_message_ids.add(msg.id)
+                            # Xotirani tejash uchun set hajmini cheklash (1000 tadan oshmasin)
+                            if len(processed_message_ids) > 1000:
+                                processed_message_ids = set(list(processed_message_ids)[-500:])
 
         except Exception as e:
             logger.error(f"DM Polling iteratsiyasida xato: {e}")
