@@ -48,15 +48,14 @@ async def distribute_ig_stories(
 
         if cached and config.storage_channel_id:
             if target_chat_id:
-                try:
+                import contextlib
+                with contextlib.suppress(Exception):
                     await bot.copy_message(
                         chat_id=target_chat_id,
                         from_chat_id=config.storage_channel_id,
                         message_id=cached.telegram_msg_id,
                     )
                     sent_count += 1
-                except Exception:
-                    pass
             continue
 
         # Agar keshda bo'lmasa, yuklaymiz
@@ -112,15 +111,14 @@ async def distribute_tg_stories(
 
         if cached and config.storage_channel_id:
             if target_chat_id:
-                try:
+                import contextlib
+                with contextlib.suppress(Exception):
                     await bot.copy_message(
                         chat_id=target_chat_id,
                         from_chat_id=config.storage_channel_id,
                         message_id=cached.telegram_msg_id,
                     )
                     sent_count += 1
-                except Exception:
-                    pass
             continue
 
         file_path = f"downloads/tg_story_{username}_{story_id}.mp4"
@@ -137,10 +135,9 @@ async def distribute_tg_stories(
                 )
                 sent_count += 1
                 
-                try:
+                import contextlib
+                with contextlib.suppress(Exception):
                     os.remove(downloaded)
-                except Exception:
-                    pass
         except Exception as e:
             logger.error(f"TG hikoyani yuklashda xatolik: {e}")
 

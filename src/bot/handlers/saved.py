@@ -158,10 +158,9 @@ async def list_saved_profiles(
 
 @router.callback_query(F.data == "refresh_saved")
 async def refresh_saved(callback: CallbackQuery, session: AsyncSession):
-    try:
+    import contextlib
+    with contextlib.suppress(Exception):
         await callback.message.delete()
-    except Exception:
-        pass
     await list_saved_profiles(
         callback.message, session, user_id=callback.from_user.id
     )
