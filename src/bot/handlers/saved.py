@@ -179,8 +179,8 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
 
     emoji = "📸" if profile.platform == "instagram" else "✈️"
     await callback.answer(f"@{profile.ig_username} hikoyalari olinmoqda...")
-    await callback.message.answer(
-        f"📥 <b>@{profile.ig_username} {emoji}</b> hikoyalari tortilmoqda..."
+    status_msg = await callback.message.answer(
+        f"🔍 <b>@{profile.ig_username} {emoji}</b> hikoyalari izlanmoqda..."
     )
 
     loop = asyncio.get_running_loop()
@@ -189,33 +189,50 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
             stories = await loop.run_in_executor(
                 None, ig_service.client.user_stories, profile.ig_user_id
             )
-            if not stories:
-                await callback.message.answer(
-                    f"❌ <b>@{profile.ig_username}</b> hozirda hech qanday hikoya joylamagan."
-                )
-                return
+        else:
+            stories = await userbot_service.get_peer_stories_info(profile.ig_username)
 
-            bot = callback.bot
-            for story in stories:
-                story_pk = str(story.pk)
-                cache_res = await session.execute(
-                    select(StoryCache).where(
-                        StoryCache.story_id == story_pk,
-                        StoryCache.platform == "instagram",
+        if not stories:
+            await status_msg.edit_text(
+                f"❌ <b>@{profile.ig_username} {emoji}</b> hozirda hech qanday hikoya joylamagan."
+            )
+            return
+
+        total = len(stories)
+        bot = callback.bot
+        sent_count = 0
+
+        for idx, story in enumerate(stories, 1):
+            await status_msg.edit_text(
+                f"📥 <b>@{profile.ig_username} {emoji}</b>: {idx}/{total} - hikoya tayyorlanmoqda..."
+            )
+
+            story_pk = (
+                str(story.pk) if profile.platform == "instagram" else str(story.id)
+            )
+
+            cache_res = await session.execute(
+                select(StoryCache).where(
+                    StoryCache.story_id == story_pk,
+                    StoryCache.platform == profile.platform,
+                )
+            )
+            cached = cache_res.scalar_one_or_none()
+
+            if cached and config.storage_channel_id:
+                try:
+                    await bot.copy_message(
+                        chat_id=callback.from_user.id,
+                        from_chat_id=config.storage_channel_id,
+                        message_id=cached.telegram_msg_id,
                     )
-                )
-                cached = cache_res.scalar_one_or_none()
-                if cached and config.storage_channel_id:
-                    try:
-                        await bot.copy_message(
-                            chat_id=callback.from_user.id,
-                            from_chat_id=config.storage_channel_id,
-                            message_id=cached.telegram_msg_id,
-                        )
-                        continue
-                    except Exception:
-                        pass
+                    sent_count += 1
+                    continue
+                except Exception:
+                    pass
 
+            # Download if not cached
+            if profile.platform == "instagram":
                 media_items = []
                 if story.media_type == 1:
                     media_items.append(
@@ -233,43 +250,45 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                         item["data"],
                         filename=f"story.{'mp4' if item['type'] == 'video' else 'jpg'}",
                     )
-                    if item["type"] == "video":
-                        await bot.send_video(callback.from_user.id, file)
-                    else:
-                        await bot.send_photo(callback.from_user.id, file)
 
-        elif profile.platform == "telegram":
-            stories = await userbot_service.get_peer_stories_info(profile.ig_username)
-            if not stories:
-                await callback.message.answer(
-                    f"❌ <b>@{profile.ig_username}</b> hozirda hech qanday hikoya joylamagan."
-                )
-                return
+                    if config.storage_channel_id:
+                        msg = await (
+                            bot.send_video
+                            if item["type"] == "video"
+                            else bot.send_photo
+                        )(
+                            chat_id=config.storage_channel_id,
+                            video=file if item["type"] == "video" else None,
+                            photo=file if item["type"] == "photo" else None,
+                        )
+                        new_cache = StoryCache(
+                            story_id=story_pk,
+                            telegram_msg_id=msg.message_id,
+                            platform="instagram",
+                        )
+                        session.add(new_cache)
+                        await session.commit()
 
-            bot = callback.bot
-            import os
-
-            for story in stories:
-                story_id = str(story.id)
-                cache_res = await session.execute(
-                    select(StoryCache).where(
-                        StoryCache.story_id == story_id,
-                        StoryCache.platform == "telegram",
-                    )
-                )
-                cached = cache_res.scalar_one_or_none()
-                if cached and config.storage_channel_id:
-                    try:
                         await bot.copy_message(
                             chat_id=callback.from_user.id,
                             from_chat_id=config.storage_channel_id,
-                            message_id=cached.telegram_msg_id,
+                            message_id=msg.message_id,
                         )
-                        continue
-                    except Exception:
-                        pass
+                    else:
+                        await (
+                            bot.send_video
+                            if item["type"] == "video"
+                            else bot.send_photo
+                        )(
+                            callback.from_user.id,
+                            video=file if item["type"] == "video" else None,
+                            photo=file if item["type"] == "photo" else None,
+                        )
+                    sent_count += 1
+            else:
+                import os
 
-                file_path = f"downloads/tg_story_{profile.ig_username}_{story_id}.mp4"
+                file_path = f"downloads/tg_story_{profile.ig_username}_{story_pk}.mp4"
                 os.makedirs("downloads", exist_ok=True)
                 try:
                     downloaded = await userbot_service.download_story(
@@ -279,10 +298,36 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                         from aiogram.types import FSInputFile
 
                         media = FSInputFile(downloaded)
-                        if downloaded.endswith(".mp4"):
-                            await bot.send_video(callback.from_user.id, media)
+                        is_video = downloaded.endswith(".mp4")
+
+                        if config.storage_channel_id:
+                            msg = await (
+                                bot.send_video if is_video else bot.send_photo
+                            )(
+                                chat_id=config.storage_channel_id,
+                                video=media if is_video else None,
+                                photo=media if not is_video else None,
+                            )
+                            new_cache = StoryCache(
+                                story_id=story_pk,
+                                telegram_msg_id=msg.message_id,
+                                platform="telegram",
+                            )
+                            session.add(new_cache)
+                            await session.commit()
+
+                            await bot.copy_message(
+                                chat_id=callback.from_user.id,
+                                from_chat_id=config.storage_channel_id,
+                                message_id=msg.message_id,
+                            )
                         else:
-                            await bot.send_photo(callback.from_user.id, media)
+                            await (bot.send_video if is_video else bot.send_photo)(
+                                callback.from_user.id,
+                                video=media if is_video else None,
+                                photo=media if not is_video else None,
+                            )
+                        sent_count += 1
                 finally:
                     import contextlib
 
@@ -290,5 +335,9 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                         if os.path.exists(file_path):
                             os.remove(file_path)
 
+        await status_msg.edit_text(
+            f"✅ <b>@{profile.ig_username} {emoji}</b>: Barcha {sent_count} ta hikoyalar yuborildi!"
+        )
+
     except Exception as e:
-        await callback.message.answer(f"❌ Xatolik yuz berdi: {e}")
+        await status_msg.edit_text(f"❌ Xatolik yuz berdi: {e}")
