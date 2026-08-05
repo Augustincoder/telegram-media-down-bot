@@ -1,8 +1,7 @@
-import os
-
 from dotenv import load_dotenv
-from bot.config import config
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from bot.config import config
 
 from .models import Base
 
@@ -14,8 +13,15 @@ DATABASE_URL = config.database_url
 
 if DATABASE_URL.startswith("sqlite"):
     import pathlib
+
     db_path = DATABASE_URL.split("///")[-1]
     pathlib.Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+elif DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+elif DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith(
+    "postgresql+asyncpg://"
+):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 
 # Create the async engine

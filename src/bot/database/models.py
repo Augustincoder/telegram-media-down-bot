@@ -91,6 +91,14 @@ class SavedProfile(Base):
         return f"<SavedProfile(user_id={self.user_id}, ig_username={self.ig_username})>"
 
 
+class SystemState(Base):
+    __tablename__ = "system_state"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    value: Mapped[str] = mapped_column(String)
+
+
 class StoryCache(Base):
     __tablename__ = "story_cache"
 

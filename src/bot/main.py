@@ -33,11 +33,13 @@ async def main():
     if config.instagram_session_id or (
         config.instagram_username and config.instagram_password
     ):
-        ig_service.login(
-            username=config.instagram_username,
-            password=config.instagram_password,
-            session_id=config.instagram_session_id,
-        )
+        async with AsyncSessionLocal() as session:
+            await ig_service.login(
+                session=session,
+                username=config.instagram_username,
+                password=config.instagram_password,
+                session_id=config.instagram_session_id,
+            )
 
     # Setup Bot and Dispatcher
     bot = Bot(

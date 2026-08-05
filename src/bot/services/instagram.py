@@ -23,13 +23,20 @@ class InstagramService:
         self.client.challenge_code_handler = get_challenge_code
         self.is_logged_in = False
 
-    def login(
-        self, username: str | None, password: str | None, session_id: str | None = None
+    async def login(
+        self,
+        session,
+        username: str | None,
+        password: str | None,
+        session_id: str | None = None,
     ) -> bool:
         if session_id:
             logger.info("Session ID topildi. Uni ishlatib kirishga urinamiz...")
             try:
-                self.client.login_by_sessionid(session_id)
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(
+                    None, self.client.login_by_sessionid, session_id
+                )
                 self.is_logged_in = True
                 logger.info("Session ID orqali muvaffaqiyatli kirildi!")
                 return True
@@ -40,16 +47,32 @@ class InstagramService:
         if not username or not password:
             return False
 
-        import pathlib
+        import json
 
-        data_dir = pathlib.Path("data")
-        data_dir.mkdir(exist_ok=True)
-        session_file = data_dir / f"instagram_session_{username}.json"
+        from sqlalchemy.future import select
+
+        from bot.database.models import SystemState
+
+        key = f"ig_session_{username}"
+        state_res = await session.execute(
+            select(SystemState).where(SystemState.key == key)
+        )
+        state = state_res.scalar_one_or_none()
+
         try:
-            if session_file.exists():
-                self.client.load_settings(session_file)
-            self.client.login(username, password)
-            self.client.dump_settings(session_file)
+            if state and state.value:
+                self.client.set_settings(json.loads(state.value))
+
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, self.client.login, username, password)
+
+            settings = self.client.get_settings()
+            if not state:
+                state = SystemState(key=key)
+                session.add(state)
+            state.value = json.dumps(settings)
+            await session.commit()
+
             self.is_logged_in = True
             return True
         except ChallengeRequired:

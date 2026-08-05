@@ -6,7 +6,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     bot_token: str
-    database_url: str = "sqlite+aiosqlite:///data/bot_database.db"
+    database_url: str = Field(
+        default="sqlite+aiosqlite:///data/bot_database.db",
+        validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL", "MYSQL_URL"),
+    )
 
     instagram_username: str | None = None
     instagram_password: str | None = None

@@ -6,3 +6,4 @@ aiosqlite
 pydantic
 pydantic-settings
 cryptography
+asyncpg==0.29.0
