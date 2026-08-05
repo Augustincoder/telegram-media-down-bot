@@ -14,8 +14,11 @@ from bot.services.telegram_userbot import userbot_service
 from bot.utils.validators import (
     extract_instagram_url, 
     extract_instagram_username,
-    extract_telegram_story_info
+    extract_telegram_story_info,
+    extract_simple_username
 )
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import CallbackQuery
 
 logger = logging.getLogger(__name__)
 router = Router(name="messages")
@@ -220,6 +223,59 @@ async def handle_telegram_story(message: Message, session: AsyncSession, peer: s
         logger.error(f"Telegram hikoya xatosi: {e}")
         await status_msg.edit_text("❌ Telegram hikoyasini yuklashda kutilmagan xato yuz berdi.")
 
+async def handle_all_telegram_stories(message: Message, peer: str):
+    """Barcha Telegram hikoyalarini yuklash"""
+    if not userbot_service.is_connected:
+        await message.answer("❌ Telegram Userbot ulanmagan. Iltimos, adminlarga murojaat qiling.")
+        return
+        
+    status_msg = await message.answer(f"⚡ @{peer} ning barcha Telegram hikoyalari qidirilmoqda...")
+    
+    import os
+    os.makedirs("downloads", exist_ok=True)
+    
+    try:
+        downloaded_files = await userbot_service.get_all_stories(peer, "downloads")
+        
+        if not downloaded_files:
+            await status_msg.edit_text(f"❌ @{peer} da aktiv hikoyalar topilmadi yoki ko'ra olmayman.")
+            return
+            
+        await status_msg.edit_text(f"✅ {len(downloaded_files)} ta hikoya topildi! Yuklanmoqda...")
+        
+        from aiogram.types import FSInputFile, InputMediaVideo, InputMediaPhoto
+        
+        media_group = []
+        for file in downloaded_files:
+            if file.endswith(".mp4"):
+                media_group.append(InputMediaVideo(media=FSInputFile(file)))
+            else:
+                media_group.append(InputMediaPhoto(media=FSInputFile(file)))
+                
+        # Media group larni 10 tadan qilib jo'natish
+        for i in range(0, len(media_group), 10):
+            chunk = media_group[i:i+10]
+            await message.answer_media_group(chunk)
+            
+        await status_msg.delete()
+        for f in downloaded_files:
+            os.remove(f)
+    except Exception as e:
+        logger.error(f"Barcha Telegram hikoyalarini yuklashda xato: {e}")
+        await status_msg.edit_text("❌ Hikoyalarni yuklashda kutilmagan xato yuz berdi.")
+
+@router.callback_query(F.data.startswith("down_ig_"))
+async def process_down_ig(callback: CallbackQuery, session: AsyncSession):
+    username = callback.data.split("down_ig_")[1]
+    await callback.message.delete()
+    await handle_story_download(callback.message, session, username)
+
+@router.callback_query(F.data.startswith("down_tg_"))
+async def process_down_tg(callback: CallbackQuery):
+    peer = callback.data.split("down_tg_")[1]
+    await callback.message.delete()
+    await handle_all_telegram_stories(callback.message, peer)
+
 @router.message(F.text)
 async def process_text_message(message: Message, session: AsyncSession):
     text = message.text
@@ -236,3 +292,15 @@ async def process_text_message(message: Message, session: AsyncSession):
     username = extract_instagram_username(text)
     if username:
         return await handle_story_download(message, session, username)
+        
+    simple = extract_simple_username(text)
+    if simple:
+        builder = InlineKeyboardBuilder()
+        builder.button(text="📸 Instagram", callback_data=f"down_ig_{simple}")
+        builder.button(text="✈️ Telegram", callback_data=f"down_tg_{simple}")
+        builder.adjust(2)
+        
+        await message.answer(
+            f"Barcha hikoyalarni yuklash uchun ijtimoiy tarmoqni tanlang:",
+            reply_markup=builder.as_markup()
+        )

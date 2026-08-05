@@ -55,3 +55,13 @@ def extract_telegram_story_info(text: str) -> tuple[str, int] | None:
             
         return (peer, story_id)
     return None
+
+def extract_simple_username(text: str) -> str | None:
+    text = text.strip()
+    if " " not in text and not text.startswith("http"):
+        if text.startswith("@"):
+            return text[1:]
+        # Username regex: faqta harf, son, pastki chiziq va nuqta
+        if re.match(r'^[A-Za-z0-9_\.]+$', text):
+            return text
+    return None
