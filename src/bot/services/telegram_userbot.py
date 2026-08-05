@@ -72,10 +72,10 @@ class TelegramUserbot:
             logger.error(f"Telegram hikoyasini yuklashda xato: {e}")
             raise e
 
-    async def get_all_stories(self, peer: str, dir_path: str) -> list[str]:
+    async def stream_all_stories(self, peer: str, dir_path: str):
         """
         Guvohnoma/username'dagi barcha aktiv storylarni yuklab olish.
-        Qaytaradi: yuklangan fayllar manzillari ro'yxati.
+        Qaytaradi: yuklangan fayllar manzillari oqimi (generator).
         """
         if not self.is_connected:
             raise Exception("Userbot ishga tushirilmagan. Story yuklab bo'lmaydi.")
@@ -85,18 +85,15 @@ class TelegramUserbot:
             result = await self.client(GetPeerStoriesRequest(peer=entity))
             
             if not result.stories or not result.stories.stories:
-                return []
+                return
                 
             import os
-            downloaded_files = []
             
             for story in result.stories.stories:
                 file_path = os.path.join(dir_path, f"tg_story_{peer}_{story.id}.mp4")
                 dl_file = await self.client.download_media(story.media, file=file_path)
                 if dl_file:
-                    downloaded_files.append(dl_file)
-                    
-            return downloaded_files
+                    yield dl_file
         except Exception as e:
             logger.error(f"Telegram foydalanuvchisi hikoyalarini yuklashda xato: {e}")
             raise e
