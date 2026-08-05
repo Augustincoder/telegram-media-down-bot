@@ -1,0 +1,10 @@
+.git
+.gitignore
+.venv
+__pycache__/
+*.pyc
+bot_database.db
+*.session
+*.json
+downloads/
+.env
