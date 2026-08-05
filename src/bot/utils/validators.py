@@ -70,3 +70,21 @@ def extract_simple_username(text: str) -> str | None:
         if re.match(r"^[A-Za-z0-9_\.]+$", text):
             return text
     return None
+
+# Telegram xabarlar manzillari uchun (t.me/channel/1234)
+TELEGRAM_MESSAGE_PATTERN = re.compile(
+    r"(?:https?:\/\/)?(?:t\.me|telegram\.me)\/(c\/)?([A-Za-z0-9_]+)\/(\d+)"
+)
+
+def extract_telegram_message_info(text: str) -> tuple[str, int] | None:
+    match = TELEGRAM_MESSAGE_PATTERN.search(text)
+    if match and "/s/" not in text: # Story emasligini tekshirish
+        is_private = match.group(1)
+        peer = match.group(2)
+        message_id = int(match.group(3))
+
+        if is_private:
+            peer = f"-100{peer}"
+
+        return (peer, message_id)
+    return None

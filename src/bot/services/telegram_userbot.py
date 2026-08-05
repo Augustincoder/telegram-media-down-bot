@@ -121,5 +121,29 @@ class TelegramUserbot:
             logger.error(f"Failed to get TG stories info for {peer}: {e}")
             return []
 
+    async def download_message_media(self, peer: str, message_id: int, file_path: str) -> str | None:
+        """
+        Telegram post media yuklab olish
+        (Yopiq va saqlash taqiqlangan postlar uchun ham ishlaydi).
+        """
+        if not self.is_connected:
+            raise Exception("Userbot ishga tushirilmagan.")
+        try:
+            entity = await self.client.get_input_entity(peer)
+            messages = await self.client.get_messages(entity, ids=[message_id])
+            if not messages or not messages[0]:
+                return None
+            
+            message = messages[0]
+            if not message.media:
+                return None
+
+            logger.info(f"Downloading post media: {peer} -> {message_id}")
+            downloaded_file = await self.client.download_media(message, file=file_path)
+            return downloaded_file
+        except Exception as e:
+            logger.error(f"Failed to download message media {peer}/{message_id}: {e}")
+            raise e
 
 userbot_service = TelegramUserbot()
+

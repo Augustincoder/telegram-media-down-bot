@@ -18,6 +18,7 @@ from bot.utils.validators import (
     extract_instagram_url,
     extract_instagram_username,
     extract_simple_username,
+    extract_telegram_message_info,
     extract_telegram_story_info,
 )
 
@@ -244,6 +245,43 @@ async def handle_telegram_story(
         )
 
 
+async def handle_telegram_message(
+    message: Message, session: AsyncSession, peer: str, message_id: int
+):
+    """Taqiqlangan yoki yopiq Telegram post media yuklash"""
+    if not userbot_service.is_connected:
+        await message.answer("❌ Telegram Userbot ulanmagan.")
+        return
+
+    status_msg = await message.answer("⚡ Telegram posti tortilmoqda...")
+    file_path = f"downloads/tg_post_{peer}_{message_id}.mp4"
+    os.makedirs("downloads", exist_ok=True)
+
+    try:
+        downloaded = await userbot_service.download_message_media(peer, message_id, file_path)
+        if not downloaded:
+            await status_msg.edit_text("❌ Postda hech qanday media (video/rasm) topilmadi yoki u yopiq chat bo'lishi mumkin.")
+            return
+
+        from aiogram.types import FSInputFile
+        media = FSInputFile(downloaded)
+
+        try:
+            if downloaded.endswith(".mp4"):
+                await message.answer_video(media, caption="📥 Telegram Post (Auto-Backup)")
+            elif downloaded.endswith((".jpg", ".png", ".jpeg")):
+                await message.answer_photo(media, caption="📥 Telegram Post (Auto-Backup)")
+            else:
+                await message.answer_document(media, caption="📥 Telegram Post (Auto-Backup)")
+            await status_msg.delete()
+        finally:
+            import contextlib
+            with contextlib.suppress(OSError):
+                os.remove(downloaded)
+    except Exception as e:
+        logger.error(f"TG message download error: {e}")
+        await status_msg.edit_text("❌ Postni yuklashda xatolik yuz berdi. Balki guruhga a'zo emasman.")
+
 async def handle_all_telegram_stories(
     message: Message, session: AsyncSession, peer: str
 ):
@@ -376,6 +414,11 @@ async def process_text_message(message: Message, session: AsyncSession):
     if tg_story:
         peer, story_id = tg_story
         return await handle_telegram_story(message, session, peer, story_id)
+
+    tg_message = extract_telegram_message_info(text)
+    if tg_message:
+        peer, message_id = tg_message
+        return await handle_telegram_message(message, session, peer, message_id)
 
     url = extract_instagram_url(text)
     if url:
