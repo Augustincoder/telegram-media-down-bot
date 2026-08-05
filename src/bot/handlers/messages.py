@@ -34,7 +34,11 @@ async def send_cached_items_individually(
     """Keshdagi fayllarni guruhlamasdan, ketma-ket alohida xabar qilib yuboradi."""
     total = len(file_ids)
     for idx, item in enumerate(file_ids, start=1):
-        caption = f"{caption_base} ({idx}/{total})" if total > 1 else caption_base
+        if "caption" in item:
+            caption = item["caption"]
+        else:
+            caption = f"{caption_base} ({idx}/{total})" if total > 1 else caption_base
+
         while True:
             try:
                 if item["type"] == "video":
@@ -118,12 +122,12 @@ async def handle_post_download(message: Message, session: AsyncSession, url: str
                         if item["type"] == "video":
                             sent_msg = await message.answer_video(file, caption=caption)
                             sent_file_ids.append(
-                                {"type": "video", "file_id": sent_msg.video.file_id}
+                                {"type": "video", "file_id": sent_msg.video.file_id, "caption": caption}
                             )
                         else:
                             sent_msg = await message.answer_photo(file, caption=caption)
                             sent_file_ids.append(
-                                {"type": "photo", "file_id": sent_msg.photo[-1].file_id}
+                                {"type": "photo", "file_id": sent_msg.photo[-1].file_id, "caption": caption}
                             )
 
                         await asyncio.sleep(0.5)
