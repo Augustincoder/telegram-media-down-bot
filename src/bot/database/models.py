@@ -113,3 +113,19 @@ class StoryCache(Base):
 
     def __repr__(self) -> str:
         return f"<StoryCache(ig_username={self.ig_username}, story_id={self.story_id})>"
+
+class UsernameHistory(Base):
+    __tablename__ = "username_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    profile_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("saved_profiles.id"))
+    old_username: Mapped[str] = mapped_column(String)
+    new_username: Mapped[str] = mapped_column(String)
+    changed_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    profile: Mapped["SavedProfile"] = relationship("SavedProfile")
+
+    def __repr__(self) -> str:
+        return f"<UsernameHistory(profile_id={self.profile_id}, old={self.old_username}, new={self.new_username})>"

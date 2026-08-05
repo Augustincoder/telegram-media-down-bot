@@ -188,12 +188,30 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
 
     loop = asyncio.get_running_loop()
     try:
+        current_username = profile.ig_username
         if profile.platform == "instagram":
             stories = await loop.run_in_executor(
                 None, ig_service.client.user_stories, profile.ig_user_id
             )
+            if stories:
+                current_username = stories[0].user.username
         else:
             stories = await userbot_service.get_peer_stories_info(profile.ig_user_id or profile.ig_username)
+            if profile.ig_user_id:
+                peer_id = int(profile.ig_user_id) if profile.ig_user_id.lstrip('-').isdigit() else profile.ig_user_id
+                entity = await userbot_service.client.get_entity(peer_id)
+                current_username = getattr(entity, "username", profile.ig_username) or profile.ig_username
+
+        if current_username != profile.ig_username:
+            from bot.database.models import UsernameHistory
+            history = UsernameHistory(
+                profile_id=profile.id,
+                old_username=profile.ig_username,
+                new_username=current_username
+            )
+            session.add(history)
+            profile.ig_username = current_username
+            await session.commit()
 
         if not stories:
             await status_msg.edit_text(
