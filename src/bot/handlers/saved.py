@@ -2,7 +2,13 @@ import asyncio
 import re
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery
+from aiogram.filters import Command
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -24,6 +30,117 @@ def extract_username(text: str) -> str | None:
         if match:
             return match.group(1)
     return raw.replace("@", "")
+
+
+@router.message(Command("save"))
+async def save_profile_handler(message: Message, session: AsyncSession):
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.answer(
+            "❌ Noto'g'ri format! /save ig @username yoki /save tg @username"
+        )
+        return
+
+    platform = "instagram"
+    username = ""
+
+    if len(parts) >= 3 and parts[1].lower() in ["ig", "tg"]:
+        platform = "instagram" if parts[1].lower() == "ig" else "telegram"
+        username = parts[2].replace("@", "")
+    else:
+        username = extract_username(message.text)
+        if not username:
+            await message.answer("❌ Noto'g'ri format!")
+            return
+
+    user_id = message.from_user.id
+
+    result = await session.execute(
+        select(SavedProfile).where(SavedProfile.user_id == user_id)
+    )
+    saved_profiles = result.scalars().all()
+
+    if len(saved_profiles) >= 10:
+        await message.answer(
+            "❌ Limit tugadi! Siz maksimal 10 ta profil saqlay olasiz."
+        )
+        return
+
+    for p in saved_profiles:
+        if p.ig_username.lower() == username.lower() and p.platform == platform:
+            await message.answer("✅ Bu profil allaqachon saqlangan.")
+            return
+
+    wait_msg = await message.answer(
+        f"🔍 <b>@{username}</b> ({platform}) qidirilmoqda..."
+    )
+
+    try:
+        if platform == "instagram":
+            loop = asyncio.get_running_loop()
+            user_info = await loop.run_in_executor(
+                None, ig_service.client.user_info_by_username, username
+            )
+            ig_user_id = str(user_info.pk)
+            username = user_info.username
+        else:
+            peer = await userbot_service.client.get_entity(username)
+            ig_user_id = str(peer.id)
+            username = getattr(peer, "username", username)
+
+        new_profile = SavedProfile(
+            user_id=user_id,
+            ig_username=username,
+            ig_user_id=ig_user_id,
+            platform=platform,
+        )
+        session.add(new_profile)
+        await session.commit()
+
+        await wait_msg.edit_text(
+            f"✅ <b>@{username}</b> muvaffaqiyatli saqlandi! Ularni ko'rish uchun /saved ni bosing."
+        )
+    except Exception as e:
+        await wait_msg.edit_text(f"❌ Profilni topib bo'lmadi yoki xatolik: {e}")
+
+
+@router.message(Command("saved"))
+async def list_saved_profiles(message: Message, session: AsyncSession):
+    user_id = message.from_user.id
+    result = await session.execute(
+        select(SavedProfile).where(SavedProfile.user_id == user_id)
+    )
+    profiles = result.scalars().all()
+
+    if not profiles:
+        await message.answer(
+            "Sizda hech qanday saqlangan profil yo'q. /save orqali qo'shing."
+        )
+        return
+
+    wait_msg = await message.answer("⏳ Saqlangan profillar ro'yxati tayyorlanmoqda...")
+
+    keyboard = []
+
+    for p in profiles:
+        emoji = "📸" if p.platform == "instagram" else "✈️"
+        text = f"{emoji} @{p.ig_username}"
+        keyboard.append(
+            [InlineKeyboardButton(text=text, callback_data=f"get_story_{p.id}")]
+        )
+
+    keyboard.append(
+        [InlineKeyboardButton(text="🔄 Yangilash", callback_data="refresh_saved")]
+    )
+
+    markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    await wait_msg.edit_text("⭐ <b>Saqlangan profillaringiz:</b>", reply_markup=markup)
+
+
+@router.callback_query(F.data == "refresh_saved")
+async def refresh_saved(callback: CallbackQuery, session: AsyncSession):
+    await list_saved_profiles(callback.message, session)
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("get_story_"))
