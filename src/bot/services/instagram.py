@@ -86,12 +86,10 @@ class InstagramService:
                     )
                     return None
 
-        # Barcha vazifalarni orqa fonda boshlash
-        tasks = [asyncio.create_task(download_item(item)) for item in media_items]
-
         # Natijalarni original tartibda kutish va yuborish
-        for idx, task in enumerate(tasks, start=1):
-            result = await task
+        # Xotirani to'ldirmaslik uchun har birini navbat bilan kutamiz
+        for idx, item in enumerate(media_items, start=1):
+            result = await download_item(item)
             if result:
                 result["index"] = idx
                 result["total"] = total

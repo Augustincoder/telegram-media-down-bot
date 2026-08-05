@@ -23,10 +23,11 @@ async def start_instagram_polling(bot: Bot):
     logger.info("Instagram DM polling worker started...")
 
     # Keshda oxirgi qayta ishlangan xabarlar ID sini saqlaymiz (to'liq ishlab qolmasligi uchun)
-    processed_message_ids = set()
     from datetime import datetime
 
     bot_start_time = datetime.now()
+    # dict ishlatamiz chunki u Python 3.7+ da kiritish ketma-ketligini saqlaydi va O(1) qidiruv imkonini beradi
+    processed_message_ids = {}
 
     MIN_SLEEP = 20
     MAX_SLEEP = 60
@@ -64,13 +65,13 @@ async def start_instagram_polling(bot: Bot):
                                 break
                             m_time = m.timestamp.replace(tzinfo=None)
                             if m_time < bot_start_time:
-                                processed_message_ids.add(m.id)
+                                processed_message_ids[m.id] = True
                                 break
                             new_msgs.append(m)
 
                         for msg in reversed(new_msgs):
                             if msg.user_id == ig_service.client.user_id:
-                                processed_message_ids.add(msg.id)
+                                processed_message_ids[msg.id] = True
                                 continue
 
                             found_new_messages = True
@@ -264,10 +265,14 @@ async def start_instagram_polling(bot: Bot):
                                             )
 
                             # Xabarni o'qilgan belgisi
-                            processed_message_ids.add(msg.id)
-                            # Xotirani tejash uchun set hajmini cheklash (1000 tadan oshmasin)
+                            processed_message_ids[msg.id] = True
+                            
+                            # Xotirani tejash uchun hajmni cheklash (1000 tadan oshmasin)
                             if len(processed_message_ids) > 1000:
-                                processed_message_ids = set(list(processed_message_ids)[-500:])
+                                # dict ning birinchi 500 ta elementini (eng eskilarini) o'chiramiz
+                                keys_to_remove = list(processed_message_ids.keys())[:500]
+                                for k in keys_to_remove:
+                                    del processed_message_ids[k]
 
         except Exception as e:
             logger.error(f"DM Polling iteratsiyasida xato: {e}")

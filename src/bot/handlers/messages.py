@@ -248,14 +248,16 @@ async def handle_telegram_story(message: Message, session: AsyncSession, peer: s
 
         media = FSInputFile(downloaded)
 
-        # Fajl kengaytmasiga qarab video yoki rasm sifatida yuborish
-        if downloaded.endswith(".mp4"):
-            await message.answer_video(media, caption="📥 Telegram hikoyasi")
-        else:
-            await message.answer_photo(media, caption="📥 Telegram hikoyasi")
-
-        await status_msg.delete()
-        os.remove(downloaded)
+        try:
+            # Fajl kengaytmasiga qarab video yoki rasm sifatida yuborish
+            if downloaded.endswith(".mp4"):
+                await message.answer_video(media, caption="📥 Telegram hikoyasi")
+            else:
+                await message.answer_photo(media, caption="📥 Telegram hikoyasi")
+            await status_msg.delete()
+        finally:
+            with contextlib.suppress(OSError):
+                os.remove(downloaded)
     except Exception as e:
         logger.error(f"Telegram hikoya xatosi: {e}")
         await status_msg.edit_text("❌ Telegram hikoyasini yuklashda kutilmagan xato yuz berdi.")
@@ -277,21 +279,22 @@ async def handle_all_telegram_stories(message: Message, peer: str):
             found = True
             media = FSInputFile(file)
 
-            while True:
-                try:
-                    if file.endswith(".mp4"):
-                        await message.answer_video(media, caption=f"📥 @{peer} Telegram hikoyasi")
-                    else:
-                        await message.answer_photo(media, caption=f"📥 @{peer} Telegram hikoyasi")
-                    await asyncio.sleep(0.5)
-                    break
-                except TelegramRetryAfter as e:
-                    logger.warning(f"Flood control exceeded. Sleeping for {e.retry_after} seconds.")
-                    await asyncio.sleep(e.retry_after + 1)
-
-            # Jo'natib bo'lingach darhol o'chiramiz
-            with contextlib.suppress(OSError):
-                os.remove(file)
+            try:
+                while True:
+                    try:
+                        if file.endswith(".mp4"):
+                            await message.answer_video(media, caption=f"📥 @{peer} Telegram hikoyasi")
+                        else:
+                            await message.answer_photo(media, caption=f"📥 @{peer} Telegram hikoyasi")
+                        await asyncio.sleep(0.5)
+                        break
+                    except TelegramRetryAfter as e:
+                        logger.warning(f"Flood control exceeded. Sleeping for {e.retry_after} seconds.")
+                        await asyncio.sleep(e.retry_after + 1)
+            finally:
+                # Jo'natib bo'lingach darhol o'chiramiz
+                with contextlib.suppress(OSError):
+                    os.remove(file)
 
         if not found:
             await status_msg.edit_text(
