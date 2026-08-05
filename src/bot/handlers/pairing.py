@@ -67,7 +67,9 @@ async def linked_accounts_handler(message: Message, session: AsyncSession):
     text = "🔗 <b>Ulangan Instagram akkauntlaringiz:</b>\n\n"
     for idx, p in enumerate(pairings, start=1):
         display_name = (
-            f"@{p.instagram_username}" if p.instagram_username else f"ID: {p.instagram_user_id}"
+            f"@{p.instagram_username}"
+            if p.instagram_username
+            else f"ID: {p.instagram_user_id}"
         )
         text += f"{idx}. <b>{display_name}</b>\n"
 
@@ -91,7 +93,9 @@ async def unlink_all_handler(message: Message, session: AsyncSession):
         await session.delete(p)
     await session.commit()
 
-    await message.answer("🗑 Barcha Instagram profillar bilan bog'lanish muvaffaqiyatli uzildi!")
+    await message.answer(
+        "🗑 Barcha Instagram profillar bilan bog'lanish muvaffaqiyatli uzildi!"
+    )
 
 
 @router.message(Command("unlink_instagram"))
@@ -120,7 +124,9 @@ async def unlink_instagram_handler(message: Message, session: AsyncSession):
         await message.answer(f"❌ <b>{target_ig}</b> ga bog'langan akkaunt topilmadi.")
         return
 
-    deleted_target = existing_pairing.instagram_username or existing_pairing.instagram_user_id
+    deleted_target = (
+        existing_pairing.instagram_username or existing_pairing.instagram_user_id
+    )
     await session.delete(existing_pairing)
     await session.commit()
 

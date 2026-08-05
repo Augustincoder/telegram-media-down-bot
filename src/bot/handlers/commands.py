@@ -17,8 +17,14 @@ router = Router(name="commands")
 def get_main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="📥 Yuklab olish"), KeyboardButton(text="💾 Saqlangan profillar")],
-            [KeyboardButton(text="🔗 Akkaunt ulash"), KeyboardButton(text="⚙️ Sozlamalar")],
+            [
+                KeyboardButton(text="📥 Yuklab olish"),
+                KeyboardButton(text="💾 Saqlangan profillar"),
+            ],
+            [
+                KeyboardButton(text="🔗 Akkaunt ulash"),
+                KeyboardButton(text="⚙️ Sozlamalar"),
+            ],
             [KeyboardButton(text="ℹ️ Yordam / Qoidalar")],
         ],
         resize_keyboard=True,

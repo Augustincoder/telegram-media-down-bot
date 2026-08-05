@@ -13,11 +13,13 @@ class Settings(BaseSettings):
 
     # Har qanday env o'zgaruvchini avtomatik tutib oladi
     instagram_session_id: str | None = Field(
-        default=None, validation_alias=AliasChoices("INSTAGRAM_SESSION_ID", "INSTAGRAM_SESSIONID")
+        default=None,
+        validation_alias=AliasChoices("INSTAGRAM_SESSION_ID", "INSTAGRAM_SESSIONID"),
     )
 
     storage_channel_id: str | None = Field(
-        default=None, validation_alias=AliasChoices("STORAGE_CHANNEL_ID", "DUMP_CHANNEL_ID")
+        default=None,
+        validation_alias=AliasChoices("STORAGE_CHANNEL_ID", "DUMP_CHANNEL_ID"),
     )
 
     # Telegram Userbot settings
@@ -40,7 +42,9 @@ class Settings(BaseSettings):
             return [int(x) for x in v]
         return []
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
 
 config = Settings()

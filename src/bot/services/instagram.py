@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 
 def get_challenge_code(username, choice):
     mode = "SMS" if choice == 1 else "Email"
-    print(f"\n[DIQQAT] Instagram {username} uchun tasdiqlash kodini {mode} orqali yubordi!")
+    print(
+        f"\n[DIQQAT] Instagram {username} uchun tasdiqlash kodini {mode} orqali yubordi!"
+    )
     return input(f"Iltimos, {mode} ga kelgan 6 xonali kodni terminalga kiriting: ")
 
 

@@ -47,7 +47,9 @@ class TelegramUserbot:
             await self.client.disconnect()
             self.is_connected = False
 
-    async def download_story(self, peer: str, story_id: int, file_path: str) -> str | None:
+    async def download_story(
+        self, peer: str, story_id: int, file_path: str
+    ) -> str | None:
         """
         Telegram story'ni yuklab olish
         peer: username (masalan, 'durov') yoki telefon raqami
@@ -61,7 +63,9 @@ class TelegramUserbot:
             entity = await self.client.get_input_entity(peer)
 
             # Story'ni olish
-            result = await self.client(GetStoriesByIDRequest(peer=entity, id=[story_id]))
+            result = await self.client(
+                GetStoriesByIDRequest(peer=entity, id=[story_id])
+            )
 
             if not result.stories:
                 return None
@@ -70,7 +74,9 @@ class TelegramUserbot:
 
             # Yuklab olish
             logger.info(f"Yuklanmoqda: @{peer} -> story {story_id}")
-            downloaded_file = await self.client.download_media(story.media, file=file_path)
+            downloaded_file = await self.client.download_media(
+                story.media, file=file_path
+            )
 
             return downloaded_file
         except Exception as e:

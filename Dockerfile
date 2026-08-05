@@ -17,10 +17,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Barcha kodlarni nusxalash
 COPY src/ /app/src/
 
+# Northflank uchun bepul Data Volume ulashga papka (Baza va Sessiyalar uchun)
+RUN mkdir -p /app/data
+
 # Environment parametrlarini nastroyka qilish (Northflank UI orqali kiritiladi)
 # Northflank'da papka permission muammolari bo'lmasligi uchun
 ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
+ENV DATABASE_URL=sqlite+aiosqlite:////app/data/bot_database.db
 
 # Ishga tushirish buyrug'i
 CMD ["python", "src/bot/main.py"]

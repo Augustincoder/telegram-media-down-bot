@@ -89,7 +89,9 @@ async def start_instagram_polling(bot: Bot):
                                         ig_username = None
                                         try:
                                             user_info = await loop.run_in_executor(
-                                                None, ig_service.client.user_info, sender_id
+                                                None,
+                                                ig_service.client.user_info,
+                                                sender_id,
                                             )
                                             ig_username = user_info.username
                                         except Exception as e:
@@ -143,7 +145,9 @@ async def start_instagram_polling(bot: Bot):
 
                                 result = await session.execute(
                                     select(InstagramPairing)
-                                    .where(InstagramPairing.instagram_user_id == sender_id)
+                                    .where(
+                                        InstagramPairing.instagram_user_id == sender_id
+                                    )
                                     .limit(1)
                                 )
                                 pairing = result.scalar_one_or_none()
@@ -188,9 +192,9 @@ async def start_instagram_polling(bot: Bot):
                                         and hasattr(msg, "clip")
                                         and msg.clip
                                     ):
-                                        media_id = getattr(msg.clip, "id", None) or getattr(
-                                            msg.clip, "pk", None
-                                        )
+                                        media_id = getattr(
+                                            msg.clip, "id", None
+                                        ) or getattr(msg.clip, "pk", None)
                                         if media_id:
                                             media_url = f"https://instagram.com/p/{str(media_id).split('_')[0]}/"
 
@@ -199,9 +203,9 @@ async def start_instagram_polling(bot: Bot):
                                         and hasattr(msg, "media_share")
                                         and msg.media_share
                                     ):
-                                        media_id = getattr(msg.media_share, "id", None) or getattr(
-                                            msg.media_share, "pk", None
-                                        )
+                                        media_id = getattr(
+                                            msg.media_share, "id", None
+                                        ) or getattr(msg.media_share, "pk", None)
                                         if media_id:
                                             media_url = f"https://instagram.com/p/{str(media_id).split('_')[0]}/"
 
@@ -212,7 +216,9 @@ async def start_instagram_polling(bot: Bot):
                                         )
                                         try:
                                             # IG Service orqali stream yuklab Telegramga jo'natamiz
-                                            from aiogram.exceptions import TelegramRetryAfter
+                                            from aiogram.exceptions import (
+                                                TelegramRetryAfter,
+                                            )
                                             from aiogram.types import BufferedInputFile
 
                                             await bot.send_message(
@@ -220,7 +226,9 @@ async def start_instagram_polling(bot: Bot):
                                                 "📥 Uzatma (Forward) qabul qilindi, yuklanmoqda...",
                                             )
 
-                                            async for item in ig_service.stream_instagram_media(
+                                            async for (
+                                                item
+                                            ) in ig_service.stream_instagram_media(
                                                 media_url
                                             ):
                                                 total = item.get("total", 1)
@@ -240,11 +248,15 @@ async def start_instagram_polling(bot: Bot):
                                                     try:
                                                         if item["type"] == "video":
                                                             await bot.send_video(
-                                                                tg_user_id, file, caption=caption
+                                                                tg_user_id,
+                                                                file,
+                                                                caption=caption,
                                                             )
                                                         else:
                                                             await bot.send_photo(
-                                                                tg_user_id, file, caption=caption
+                                                                tg_user_id,
+                                                                file,
+                                                                caption=caption,
                                                             )
 
                                                         await asyncio.sleep(0.5)
@@ -253,7 +265,9 @@ async def start_instagram_polling(bot: Bot):
                                                         logger.warning(
                                                             f"Flood control in DM poll. Sleeping {e.retry_after}s."
                                                         )
-                                                        await asyncio.sleep(e.retry_after + 1)
+                                                        await asyncio.sleep(
+                                                            e.retry_after + 1
+                                                        )
 
                                         except Exception as e:
                                             logger.error(
@@ -266,11 +280,13 @@ async def start_instagram_polling(bot: Bot):
 
                             # Xabarni o'qilgan belgisi
                             processed_message_ids[msg.id] = True
-                            
+
                             # Xotirani tejash uchun hajmni cheklash (1000 tadan oshmasin)
                             if len(processed_message_ids) > 1000:
                                 # dict ning birinchi 500 ta elementini (eng eskilarini) o'chiramiz
-                                keys_to_remove = list(processed_message_ids.keys())[:500]
+                                keys_to_remove = list(processed_message_ids.keys())[
+                                    :500
+                                ]
                                 for k in keys_to_remove:
                                     del processed_message_ids[k]
 
@@ -278,6 +294,8 @@ async def start_instagram_polling(bot: Bot):
             logger.error(f"DM Polling iteratsiyasida xato: {e}")
 
         # Dinamik (aqlli) sleep logikasi
-        current_sleep = MIN_SLEEP if found_new_messages else min(current_sleep + 10, MAX_SLEEP)
+        current_sleep = (
+            MIN_SLEEP if found_new_messages else min(current_sleep + 10, MAX_SLEEP)
+        )
 
         await asyncio.sleep(current_sleep)

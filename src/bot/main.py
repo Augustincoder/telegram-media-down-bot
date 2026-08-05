@@ -30,7 +30,9 @@ async def main():
     logger.info("Database models initialized.")
 
     # Init Instagram Service (Login using Session ID or Credentials)
-    if config.instagram_session_id or (config.instagram_username and config.instagram_password):
+    if config.instagram_session_id or (
+        config.instagram_username and config.instagram_password
+    ):
         ig_service.login(
             username=config.instagram_username,
             password=config.instagram_password,
@@ -38,7 +40,9 @@ async def main():
         )
 
     # Setup Bot and Dispatcher
-    bot = Bot(token=config.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    bot = Bot(
+        token=config.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
     dp = Dispatcher()
 
     # Register Middlewares
@@ -51,7 +55,9 @@ async def main():
     logger.info("Bot is now polling...")
     try:
         # Orqa fonda (background) Instagram DM polling ni ishga tushirish
-        if config.instagram_session_id or (config.instagram_username and config.instagram_password):
+        if config.instagram_session_id or (
+            config.instagram_username and config.instagram_password
+        ):
             asyncio.create_task(start_instagram_polling(bot))
             asyncio.create_task(start_story_monitor(bot))
 

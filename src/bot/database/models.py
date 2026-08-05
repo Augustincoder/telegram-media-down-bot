@@ -21,7 +21,9 @@ class User(Base):
     )
 
     # Relationships
-    downloads: Mapped[list["Download"]] = relationship("Download", back_populates="user")
+    downloads: Mapped[list["Download"]] = relationship(
+        "Download", back_populates="user"
+    )
     pairing: Mapped[Optional["InstagramPairing"]] = relationship(
         "InstagramPairing", back_populates="user", uselist=False
     )

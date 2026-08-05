@@ -28,7 +28,9 @@ router = Router(name="messages")
 download_semaphore = asyncio.Semaphore(3)
 
 
-async def send_cached_items_individually(message: Message, file_ids: list[dict], caption_base: str):
+async def send_cached_items_individually(
+    message: Message, file_ids: list[dict], caption_base: str
+):
     """Keshdagi fayllarni guruhlamasdan, ketma-ket alohida xabar qilib yuboradi."""
     total = len(file_ids)
     for idx, item in enumerate(file_ids, start=1):
@@ -44,7 +46,9 @@ async def send_cached_items_individually(message: Message, file_ids: list[dict],
                 await asyncio.sleep(0.5)
                 break
             except TelegramRetryAfter as e:
-                logger.warning(f"Flood control exceeded. Sleeping for {e.retry_after} seconds.")
+                logger.warning(
+                    f"Flood control exceeded. Sleeping for {e.retry_after} seconds."
+                )
                 await asyncio.sleep(e.retry_after + 1)
 
 
@@ -53,7 +57,10 @@ async def handle_post_download(message: Message, session: AsyncSession, url: str
     user_id = message.from_user.id
 
     result = await session.execute(
-        select(Download).where(Download.url == url).where(Download.file_id is not None).limit(1)
+        select(Download)
+        .where(Download.url == url)
+        .where(Download.file_id is not None)
+        .limit(1)
     )
     cached_download = result.scalar_one_or_none()
 
@@ -62,7 +69,10 @@ async def handle_post_download(message: Message, session: AsyncSession, url: str
         try:
             if cached_download.media_type in ("video", "photo"):
                 file_ids = [
-                    {"type": cached_download.media_type, "file_id": cached_download.file_id}
+                    {
+                        "type": cached_download.media_type,
+                        "file_id": cached_download.file_id,
+                    }
                 ]
             else:
                 file_ids = json.loads(cached_download.file_id)
@@ -83,9 +93,14 @@ async def handle_post_download(message: Message, session: AsyncSession, url: str
             async for item in ig_service.stream_instagram_media(url):
                 total = item.get("total", 1)
                 idx = item.get("index", 1)
-                caption = f"📥 Yuklab olindi ({idx}/{total})" if total > 1 else "📥 Yuklab olindi"
+                caption = (
+                    f"📥 Yuklab olindi ({idx}/{total})"
+                    if total > 1
+                    else "📥 Yuklab olindi"
+                )
                 file = BufferedInputFile(
-                    item["data"], filename=f"media.{'mp4' if item['type'] == 'video' else 'jpg'}"
+                    item["data"],
+                    filename=f"media.{'mp4' if item['type'] == 'video' else 'jpg'}",
                 )
 
                 while True:
@@ -113,9 +128,13 @@ async def handle_post_download(message: Message, session: AsyncSession, url: str
                 await status_msg.edit_text("❌ Mediani yuklab olishni imkoni bo'lmadi.")
                 return
 
-            media_type = "carousel" if len(sent_file_ids) > 1 else sent_file_ids[0]["type"]
+            media_type = (
+                "carousel" if len(sent_file_ids) > 1 else sent_file_ids[0]["type"]
+            )
             cached_file_id = (
-                json.dumps(sent_file_ids) if len(sent_file_ids) > 1 else sent_file_ids[0]["file_id"]
+                json.dumps(sent_file_ids)
+                if len(sent_file_ids) > 1
+                else sent_file_ids[0]["file_id"]
             )
 
             new_dl = Download(
@@ -163,7 +182,9 @@ async def handle_story_download(message: Message, session: AsyncSession, usernam
         except Exception as e:
             logger.error(f"Story keshini o'qishda xatolik: {e}")
 
-    status_msg = await message.answer(f"⚡ @{username} profilidan hikoyalar tortilmoqda...")
+    status_msg = await message.answer(
+        f"⚡ @{username} profilidan hikoyalar tortilmoqda..."
+    )
     async with download_semaphore:
         try:
             sent_file_ids = []
@@ -177,7 +198,8 @@ async def handle_story_download(message: Message, session: AsyncSession, usernam
                     else f"📥 @{username} hikoyasi"
                 )
                 file = BufferedInputFile(
-                    item["data"], filename=f"story.{'mp4' if item['type'] == 'video' else 'jpg'}"
+                    item["data"],
+                    filename=f"story.{'mp4' if item['type'] == 'video' else 'jpg'}",
                 )
 
                 while True:
@@ -223,10 +245,14 @@ async def handle_story_download(message: Message, session: AsyncSession, usernam
             await status_msg.edit_text("❌ Hikoyalarni yuklashda xatolik yuz berdi.")
 
 
-async def handle_telegram_story(message: Message, session: AsyncSession, peer: str, story_id: int):
+async def handle_telegram_story(
+    message: Message, session: AsyncSession, peer: str, story_id: int
+):
     """Telegram hikoyasini Userbot orqali yuklash"""
     if not userbot_service.is_connected:
-        await message.answer("❌ Telegram Userbot ulanmagan. Iltimos, adminlarga murojaat qiling.")
+        await message.answer(
+            "❌ Telegram Userbot ulanmagan. Iltimos, adminlarga murojaat qiling."
+        )
         return
 
     status_msg = await message.answer("⚡ Telegram hikoyasi tortilmoqda...")
@@ -260,16 +286,22 @@ async def handle_telegram_story(message: Message, session: AsyncSession, peer: s
                 os.remove(downloaded)
     except Exception as e:
         logger.error(f"Telegram hikoya xatosi: {e}")
-        await status_msg.edit_text("❌ Telegram hikoyasini yuklashda kutilmagan xato yuz berdi.")
+        await status_msg.edit_text(
+            "❌ Telegram hikoyasini yuklashda kutilmagan xato yuz berdi."
+        )
 
 
 async def handle_all_telegram_stories(message: Message, peer: str):
     """Barcha Telegram hikoyalarini yuklash"""
     if not userbot_service.is_connected:
-        await message.answer("❌ Telegram Userbot ulanmagan. Iltimos, adminlarga murojaat qiling.")
+        await message.answer(
+            "❌ Telegram Userbot ulanmagan. Iltimos, adminlarga murojaat qiling."
+        )
         return
 
-    status_msg = await message.answer(f"⚡ @{peer} ning barcha Telegram hikoyalari qidirilmoqda...")
+    status_msg = await message.answer(
+        f"⚡ @{peer} ning barcha Telegram hikoyalari qidirilmoqda..."
+    )
 
     os.makedirs("downloads", exist_ok=True)
 
@@ -283,13 +315,19 @@ async def handle_all_telegram_stories(message: Message, peer: str):
                 while True:
                     try:
                         if file.endswith(".mp4"):
-                            await message.answer_video(media, caption=f"📥 @{peer} Telegram hikoyasi")
+                            await message.answer_video(
+                                media, caption=f"📥 @{peer} Telegram hikoyasi"
+                            )
                         else:
-                            await message.answer_photo(media, caption=f"📥 @{peer} Telegram hikoyasi")
+                            await message.answer_photo(
+                                media, caption=f"📥 @{peer} Telegram hikoyasi"
+                            )
                         await asyncio.sleep(0.5)
                         break
                     except TelegramRetryAfter as e:
-                        logger.warning(f"Flood control exceeded. Sleeping for {e.retry_after} seconds.")
+                        logger.warning(
+                            f"Flood control exceeded. Sleeping for {e.retry_after} seconds."
+                        )
                         await asyncio.sleep(e.retry_after + 1)
             finally:
                 # Jo'natib bo'lingach darhol o'chiramiz
@@ -305,7 +343,9 @@ async def handle_all_telegram_stories(message: Message, peer: str):
         await status_msg.delete()
     except Exception as e:
         logger.error(f"Barcha Telegram hikoyalarini yuklashda xato: {e}")
-        await status_msg.edit_text("❌ Hikoyalarni yuklashda kutilmagan xato yuz berdi.")
+        await status_msg.edit_text(
+            "❌ Hikoyalarni yuklashda kutilmagan xato yuz berdi."
+        )
 
 
 @router.callback_query(F.data.startswith("set_"))

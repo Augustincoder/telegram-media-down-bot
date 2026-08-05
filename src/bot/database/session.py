@@ -15,7 +15,9 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///bot_database.db")
 engine = create_async_engine(DATABASE_URL, echo=False)
 
 # Session maker to be used in handlers or middleware
-AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+AsyncSessionLocal = async_sessionmaker(
+    engine, class_=AsyncSession, expire_on_commit=False
+)
 
 
 async def init_models():
