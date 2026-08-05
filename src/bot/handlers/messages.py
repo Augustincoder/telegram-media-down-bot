@@ -222,13 +222,10 @@ async def handle_story_download(message: Message, session: AsyncSession, usernam
                 )
 
                 if config.storage_channel_id:
-                    msg = await (
-                        bot.send_video if item["type"] == "video" else bot.send_photo
-                    )(
-                        chat_id=config.storage_channel_id,
-                        video=file if item["type"] == "video" else None,
-                        photo=file if item["type"] == "photo" else None,
-                    )
+                    if item["type"] == "video":
+                        msg = await bot.send_video(config.storage_channel_id, video=file)
+                    else:
+                        msg = await bot.send_photo(config.storage_channel_id, photo=file)
                     new_cache = StoryCache(
                         story_id=story_pk,
                         telegram_msg_id=msg.message_id,
@@ -243,13 +240,10 @@ async def handle_story_download(message: Message, session: AsyncSession, usernam
                         message_id=msg.message_id,
                     )
                 else:
-                    await (
-                        bot.send_video if item["type"] == "video" else bot.send_photo
-                    )(
-                        user_id,
-                        video=file if item["type"] == "video" else None,
-                        photo=file if item["type"] == "photo" else None,
-                    )
+                    if item["type"] == "video":
+                        await bot.send_video(user_id, video=file)
+                    else:
+                        await bot.send_photo(user_id, photo=file)
                 sent_count += 1
 
         await status_msg.edit_text(
@@ -372,11 +366,10 @@ async def handle_all_telegram_stories(
                     is_video = downloaded.endswith(".mp4")
 
                     if config.storage_channel_id:
-                        msg = await (bot.send_video if is_video else bot.send_photo)(
-                            chat_id=config.storage_channel_id,
-                            video=media if is_video else None,
-                            photo=media if not is_video else None,
-                        )
+                        if is_video:
+                            msg = await bot.send_video(config.storage_channel_id, video=media)
+                        else:
+                            msg = await bot.send_photo(config.storage_channel_id, photo=media)
                         new_cache = StoryCache(
                             story_id=story_id,
                             telegram_msg_id=msg.message_id,
@@ -391,11 +384,10 @@ async def handle_all_telegram_stories(
                             message_id=msg.message_id,
                         )
                     else:
-                        await (bot.send_video if is_video else bot.send_photo)(
-                            user_id,
-                            video=media if is_video else None,
-                            photo=media if not is_video else None,
-                        )
+                        if is_video:
+                            await bot.send_video(user_id, video=media)
+                        else:
+                            await bot.send_photo(user_id, photo=media)
                     sent_count += 1
             finally:
                 import contextlib

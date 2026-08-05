@@ -252,15 +252,10 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                     )
 
                     if config.storage_channel_id:
-                        msg = await (
-                            bot.send_video
-                            if item["type"] == "video"
-                            else bot.send_photo
-                        )(
-                            chat_id=config.storage_channel_id,
-                            video=file if item["type"] == "video" else None,
-                            photo=file if item["type"] == "photo" else None,
-                        )
+                        if item["type"] == "video":
+                            msg = await bot.send_video(config.storage_channel_id, video=file)
+                        else:
+                            msg = await bot.send_photo(config.storage_channel_id, photo=file)
                         new_cache = StoryCache(
                             story_id=story_pk,
                             telegram_msg_id=msg.message_id,
@@ -275,15 +270,10 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                             message_id=msg.message_id,
                         )
                     else:
-                        await (
-                            bot.send_video
-                            if item["type"] == "video"
-                            else bot.send_photo
-                        )(
-                            callback.from_user.id,
-                            video=file if item["type"] == "video" else None,
-                            photo=file if item["type"] == "photo" else None,
-                        )
+                        if item["type"] == "video":
+                            await bot.send_video(callback.from_user.id, video=file)
+                        else:
+                            await bot.send_photo(callback.from_user.id, photo=file)
                     sent_count += 1
             else:
                 import os
@@ -301,13 +291,10 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                         is_video = downloaded.endswith(".mp4")
 
                         if config.storage_channel_id:
-                            msg = await (
-                                bot.send_video if is_video else bot.send_photo
-                            )(
-                                chat_id=config.storage_channel_id,
-                                video=media if is_video else None,
-                                photo=media if not is_video else None,
-                            )
+                            if is_video:
+                                msg = await bot.send_video(config.storage_channel_id, video=media)
+                            else:
+                                msg = await bot.send_photo(config.storage_channel_id, photo=media)
                             new_cache = StoryCache(
                                 story_id=story_pk,
                                 telegram_msg_id=msg.message_id,
@@ -322,11 +309,10 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                                 message_id=msg.message_id,
                             )
                         else:
-                            await (bot.send_video if is_video else bot.send_photo)(
-                                callback.from_user.id,
-                                video=media if is_video else None,
-                                photo=media if not is_video else None,
-                            )
+                            if is_video:
+                                await bot.send_video(callback.from_user.id, video=media)
+                            else:
+                                await bot.send_photo(callback.from_user.id, photo=media)
                         sent_count += 1
                 finally:
                     import contextlib
