@@ -265,6 +265,7 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                             story_id=story_pk,
                             telegram_msg_id=msg.message_id,
                             platform="instagram",
+                            ig_username=profile.ig_username,
                         )
                         session.add(new_cache)
                         await session.commit()
@@ -304,6 +305,7 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                                 story_id=story_pk,
                                 telegram_msg_id=msg.message_id,
                                 platform="telegram",
+                                ig_username=profile.ig_username,
                             )
                             session.add(new_cache)
                             await session.commit()

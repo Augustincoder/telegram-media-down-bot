@@ -230,6 +230,7 @@ async def handle_story_download(message: Message, session: AsyncSession, usernam
                         story_id=story_pk,
                         telegram_msg_id=msg.message_id,
                         platform="instagram",
+                        ig_username=username,
                     )
                     session.add(new_cache)
                     await session.commit()
@@ -374,6 +375,7 @@ async def handle_all_telegram_stories(
                             story_id=story_id,
                             telegram_msg_id=msg.message_id,
                             platform="telegram",
+                            ig_username=username,
                         )
                         session.add(new_cache)
                         await session.commit()
