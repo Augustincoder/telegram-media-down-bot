@@ -1,0 +1,11 @@
+# CHANGELOG Enforcement Rule
+
+CRITICAL INVARIANT: You are strictly required to maintain the `CHANGELOG.md` file for this project. 
+
+Before executing ANY `git commit` or `git push` commands, you MUST:
+1. Open and review the current `CHANGELOG.md`.
+2. Document all notable changes, refactors, features, and bug fixes you just implemented under the `## [Unreleased]` section.
+3. Write the logs professionally, fully detailed, and in the "Keep a Changelog" format. Ensure NO changes are left out.
+4. Once `CHANGELOG.md` is updated, include it in your git commit.
+
+NEVER commit code without first updating the changelog.
