@@ -1,6 +1,6 @@
 import logging
 
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command, CommandStart
 from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
 from sqlalchemy import func

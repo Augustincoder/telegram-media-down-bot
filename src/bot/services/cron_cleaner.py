@@ -27,9 +27,8 @@ async def start_cron_cleaner():
             
             async with AsyncSessionLocal() as session:
                 # Delete old StoryCache
-                # Note: StoryCache uses added_at
                 story_result = await session.execute(
-                    delete(StoryCache).where(StoryCache.added_at < cutoff_date)
+                    delete(StoryCache).where(StoryCache.downloaded_at < cutoff_date)
                 )
                 
                 # Delete old Download
