@@ -263,3 +263,51 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
 
     except Exception as e:
         await status_msg.edit_text(f"❌ Xatolik yuz berdi: {e}")
+
+@router.message(Command("recover_hashes"))
+async def recover_hashes_handler(message: Message, session: AsyncSession):
+    if not userbot_service.is_connected:
+        await message.answer("Userbot is not connected.")
+        return
+
+    wait_msg = await message.answer("🔍 Barcha Telegram profillarni tiklash boshlandi...")
+
+    result = await session.execute(
+        select(SavedProfile).where(SavedProfile.platform == "telegram", SavedProfile.tg_access_hash == None)
+    )
+    profiles_to_recover = result.scalars().all()
+
+    if not profiles_to_recover:
+        await wait_msg.edit_text("✅ Tiklanishi kerak bo'lgan Telegram profillar yo'q (hammasida access_hash bor).")
+        return
+
+    await wait_msg.edit_text(f"⏳ {len(profiles_to_recover)} ta profil topildi. Ularni izlash boshlandi (bu biroz vaqt olishi mumkin)...")
+
+    recovered_count = 0
+    try:
+        # Fetch all dialogs to force telethon to cache entities
+        dialogs = await userbot_service.client.get_dialogs(limit=500)
+        
+        for profile in profiles_to_recover:
+            if not profile.ig_user_id:
+                continue
+                
+            target_id = int(profile.ig_user_id)
+            
+            # Find in dialogs
+            found_entity = None
+            for dialog in dialogs:
+                if getattr(dialog.entity, "id", None) == target_id:
+                    found_entity = dialog.entity
+                    break
+                    
+            if found_entity and hasattr(found_entity, "access_hash"):
+                profile.tg_access_hash = str(found_entity.access_hash)
+                profile.ig_username = getattr(found_entity, "username", profile.ig_username) or profile.ig_username
+                recovered_count += 1
+                
+        await session.commit()
+        await wait_msg.edit_text(f"✅ Tiklash yakunlandi. {recovered_count}/{len(profiles_to_recover)} ta profil muvaffaqiyatli tiklandi.")
+        
+    except Exception as e:
+        await wait_msg.edit_text(f"❌ Xatolik yuz berdi: {e}")
