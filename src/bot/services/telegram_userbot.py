@@ -27,8 +27,19 @@ class TelegramUserbot:
             return
 
         try:
+            from telethon.sessions import SQLiteSession, StringSession
+            session = SQLiteSession("telegram_userbot_session")
+            if not session.server_address and config.telegram_userbot_session_string:
+                try:
+                    str_sess = StringSession(config.telegram_userbot_session_string)
+                    session.set_dc(str_sess.dc_id, str_sess.server_address, str_sess.port)
+                    session.auth_key = str_sess.auth_key
+                    logger.info("Migrated StringSession to SQLiteSession.")
+                except Exception as e:
+                    logger.warning(f"Could not migrate StringSession: {e}")
+
             self.client = TelegramClient(
-                StringSession(config.telegram_userbot_session_string),
+                session,
                 config.telegram_api_id,
                 config.telegram_api_hash,
             )
