@@ -65,6 +65,10 @@ async def main():
 
         # Start Telegram Userbot (if configured)
         asyncio.create_task(userbot_service.start())
+        
+        # Start DB cron cleaner
+        from bot.services.cron_cleaner import start_cron_cleaner
+        asyncio.create_task(start_cron_cleaner())
 
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)

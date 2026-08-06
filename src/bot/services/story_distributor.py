@@ -138,12 +138,15 @@ async def distribute_tg_stories(
                     bot, session, "telegram", username, story_id, media, is_video, target_chat_id, caption
                 )
                 sent_count += 1
-                
-                import contextlib
-                with contextlib.suppress(Exception):
-                    os.remove(downloaded)
         except Exception as e:
             logger.error(f"TG hikoyani yuklashda xatolik: {e}")
+        finally:
+            import contextlib
+            with contextlib.suppress(Exception):
+                if 'downloaded' in locals() and downloaded:
+                    os.remove(downloaded)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
 
     return sent_count
 
