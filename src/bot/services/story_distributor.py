@@ -13,6 +13,23 @@ from bot.services.telegram_userbot import userbot_service
 
 logger = logging.getLogger(__name__)
 
+from datetime import datetime
+
+def generate_story_caption(username: str, platform: str, posted_time: datetime | None = None) -> str:
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    posted_str = posted_time.strftime("%Y-%m-%d %H:%M:%S") if posted_time else "Noma'lum"
+    emoji = "📸" if platform == "instagram" else "✈️"
+    
+    caption = f"📥 <b>{username}</b> {emoji} hikoyasi\n"
+    caption += f"<blockquote expandable>"
+    caption += f"<b>👤 Profil:</b> @{username}\n"
+    caption += f"<b>🌐 Tarmoq:</b> {platform.capitalize()}\n"
+    caption += f"<b>🕰 Qo'yilgan:</b> {posted_str}\n"
+    caption += f"<b>💾 Saqlangan:</b> {now_str}"
+    caption += f"</blockquote>"
+    
+    return caption
+
 async def distribute_ig_stories(
     bot: Bot,
     session: AsyncSession,
@@ -71,7 +88,7 @@ async def distribute_ig_stories(
                 filename=f"story.{'mp4' if item['type'] == 'video' else 'jpg'}",
             )
             
-            caption = f"📥 <b>{username} {emoji}</b> hikoyasi (Auto-Backup)" if not target_chat_id else None
+            caption = generate_story_caption(username, "instagram", getattr(story, "taken_at", None)) if not target_chat_id else None
 
             await _send_and_cache(
                 bot, session, "instagram", username, story_pk, file, item["type"] == "video", target_chat_id, caption
@@ -132,7 +149,7 @@ async def distribute_tg_stories(
             if downloaded:
                 media = FSInputFile(downloaded)
                 is_video = downloaded.endswith(".mp4")
-                caption = f"📥 <b>{username} {emoji}</b> hikoyasi (Auto-Backup)" if not target_chat_id else None
+                caption = generate_story_caption(username, "telegram", getattr(story, "date", None)) if not target_chat_id else None
 
                 await _send_and_cache(
                     bot, session, "telegram", username, story_id, media, is_video, target_chat_id, caption
