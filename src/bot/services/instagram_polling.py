@@ -29,8 +29,8 @@ async def start_instagram_polling(bot: Bot):
     # dict ishlatamiz chunki u Python 3.7+ da kiritish ketma-ketligini saqlaydi va O(1) qidiruv imkonini beradi
     processed_message_ids = {}
 
-    MIN_SLEEP = 20
-    MAX_SLEEP = 60
+    MIN_SLEEP = 45
+    MAX_SLEEP = 180
     current_sleep = MIN_SLEEP
 
     while True:

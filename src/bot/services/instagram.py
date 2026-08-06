@@ -106,7 +106,9 @@ class InstagramService:
                     if len(data) > 49.5 * 1024 * 1024:
                         logger.warning(f"File too large for {item['url'][:50]}...")
                         return None
-                    return {"type": item["type"], "data": data}
+                    result_item = item.copy()
+                    result_item["data"] = data
+                    return result_item
                 except Exception as e:
                     logger.error(
                         f"Error downloading item {item['url'][:50]}...: {type(e).__name__} {e}"
