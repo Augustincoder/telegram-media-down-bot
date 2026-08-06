@@ -2,7 +2,6 @@ import logging
 import os
 
 from telethon import TelegramClient
-from telethon.sessions import StringSession
 from telethon.tl.functions.stories import GetPeerStoriesRequest, GetStoriesByIDRequest
 
 from bot.config import config

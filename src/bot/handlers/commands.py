@@ -60,6 +60,7 @@ async def cmd_start(message: Message, session: AsyncSession):
 
 
 @router.message(Command("help"))
+@router.message(F.text == "ℹ️ Yordam / Qoidalar")
 async def cmd_help(message: Message):
     text = (
         "📖 <b>Botdan foydalanish qoidalari:</b>\n\n"

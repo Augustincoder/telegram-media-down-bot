@@ -12,6 +12,8 @@ router = Router(name="pairing")
 
 
 @router.message(Command("link_instagram"))
+@router.message(Command("link_ig"))
+@router.message(F.text == "🔗 Akkaunt ulash")
 async def link_instagram_handler(message: Message, session: AsyncSession):
     user_id = message.from_user.id
 

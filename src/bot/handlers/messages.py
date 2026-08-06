@@ -359,6 +359,25 @@ async def process_down_tg(callback: CallbackQuery, session: AsyncSession):
     await handle_all_telegram_stories(callback.message, session, peer)
 
 
+@router.message(F.text == "📥 Yuklab olish")
+async def process_menu_download(message: Message):
+    await message.answer(
+        "Men tayyorman! 😎 Shunchaki Instagram yoki Telegramdan havola/username yuboring."
+    )
+
+@router.message(F.text == "⚙️ Sozlamalar")
+async def process_menu_settings(message: Message):
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🇺🇿 Til (O'zbek)", callback_data="set_lang")
+    builder.button(text="🔔 Bildirishnomalar: Yoqilgan", callback_data="set_notif")
+    builder.adjust(1)
+    await message.answer(
+        "⚙️ <b>Sozlamalar paneli</b>\n\n"
+        "O'zingizga mos ravishda botni sozlang (bu funksiyalar tez orada to'liq ishga tushadi):",
+        reply_markup=builder.as_markup(),
+    )
+
+
 @router.message(F.text)
 async def process_text_message(message: Message, session: AsyncSession):
     text = message.text.strip()
@@ -391,38 +410,6 @@ async def process_text_message(message: Message, session: AsyncSession):
         except Exception as e:
             await message.answer(f"❌ Xatolik yuz berdi: {e}")
         return
-
-    # Menyu tugmalarini ushlash
-    if text == "📥 Yuklab olish":
-        return await message.answer(
-            "Men tayyorman! 😎 Shunchaki Instagram yoki Telegramdan havola/username yuboring."
-        )
-
-    if text == "💾 Saqlangan profillar":
-        from bot.handlers.saved import list_saved_profiles
-
-        return await list_saved_profiles(message, session)
-
-    if text == "🔗 Akkaunt ulash":
-        from bot.handlers.pairing import link_instagram_handler
-
-        return await link_instagram_handler(message, session)
-
-    if text == "⚙️ Sozlamalar":
-        builder = InlineKeyboardBuilder()
-        builder.button(text="🇺🇿 Til (O'zbek)", callback_data="set_lang")
-        builder.button(text="🔔 Bildirishnomalar: Yoqilgan", callback_data="set_notif")
-        builder.adjust(1)
-        return await message.answer(
-            "⚙️ <b>Sozlamalar paneli</b>\n\n"
-            "O'zingizga mos ravishda botni sozlang (bu funksiyalar tez orada to'liq ishga tushadi):",
-            reply_markup=builder.as_markup(),
-        )
-
-    if text == "ℹ️ Yordam / Qoidalar":
-        from bot.handlers.commands import cmd_help
-
-        return await cmd_help(message)
 
     tg_story = extract_telegram_story_info(text)
     if tg_story:

@@ -1,10 +1,11 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete
+
+from bot.database.models import Download, StoryCache
 from bot.database.session import AsyncSessionLocal
-from bot.database.models import StoryCache, Download
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ async def start_cron_cleaner():
     
     while True:
         try:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=DAYS_TO_KEEP)
+            cutoff_date = datetime.now(UTC) - timedelta(days=DAYS_TO_KEEP)
             
             async with AsyncSessionLocal() as session:
                 # Delete old StoryCache

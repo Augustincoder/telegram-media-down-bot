@@ -26,8 +26,10 @@ async def start_instagram_polling(bot: Bot):
     from datetime import datetime
 
     bot_start_time = datetime.now()
-    # dict ishlatamiz chunki u Python 3.7+ da kiritish ketma-ketligini saqlaydi va O(1) qidiruv imkonini beradi
-    processed_message_ids = {}
+    # dict ishlatamiz chunki u Python 3.7+ da kiritish ketma-ketligini saqlaydi
+    from collections import OrderedDict
+    processed_message_ids = OrderedDict()
+    MAX_PROCESSED = 5000  # Max size to prevent memory leak
 
     MIN_SLEEP = 45
     MAX_SLEEP = 180
@@ -38,12 +40,9 @@ async def start_instagram_polling(bot: Bot):
             found_new_messages = False
             loop = asyncio.get_running_loop()
 
-            # Sinxron instagrapi metodini executor orqali asinxron chaqirish
             def fetch_inbox():
                 try:
-                    # pending: yangi, so'rovda turgan xabarlar
                     pending = ig_service.client.direct_pending_inbox(amount=5)
-                    # threads: asosiy inboxdagi xabarlar
                     threads = ig_service.client.direct_threads(amount=5)
                     return pending + threads
                 except Exception as e:
@@ -53,7 +52,14 @@ async def start_instagram_polling(bot: Bot):
                     logger.error(f"Failed to fetch DM inbox: {e}")
                     return []
 
-            threads = await loop.run_in_executor(None, fetch_inbox)
+            try:
+                threads = await asyncio.wait_for(
+                    loop.run_in_executor(None, fetch_inbox),
+                    timeout=30.0
+                )
+            except asyncio.TimeoutError:
+                logger.error("Timeout fetching DM inbox. Skipping iteration.")
+                threads = []
             
             if not ig_service.is_logged_in:
                 logger.warning("Session expired or logged out. Attempting to re-login...")
@@ -89,6 +95,8 @@ async def start_instagram_polling(bot: Bot):
                         for msg in reversed(new_msgs):
                             if msg.user_id == ig_service.client.user_id:
                                 processed_message_ids[msg.id] = True
+                                if len(processed_message_ids) > MAX_PROCESSED:
+                                    processed_message_ids.popitem(last=False)
                                 continue
 
                             found_new_messages = True

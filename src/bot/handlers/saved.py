@@ -107,6 +107,7 @@ async def save_profile_handler(message: Message, session: AsyncSession):
 
 
 @router.message(Command("saved"))
+@router.message(F.text == "💾 Saqlangan profillar")
 async def list_saved_profiles(
     message: Message, session: AsyncSession, user_id: int | None = None
 ):
