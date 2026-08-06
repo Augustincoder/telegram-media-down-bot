@@ -47,10 +47,27 @@ async def start_instagram_polling(bot: Bot):
                     threads = ig_service.client.direct_threads(amount=5)
                     return pending + threads
                 except Exception as e:
+                    err_msg = str(e).lower()
+                    if "user_has_logged_out" in err_msg or "login_required" in err_msg or "403" in err_msg or "invalid request" in err_msg:
+                        ig_service.is_logged_in = False
                     logger.error(f"Failed to fetch DM inbox: {e}")
                     return []
 
             threads = await loop.run_in_executor(None, fetch_inbox)
+            
+            if not ig_service.is_logged_in:
+                logger.warning("Session expired or logged out. Attempting to re-login...")
+                async with AsyncSessionLocal() as session:
+                    success = await ig_service.login(
+                        session=session,
+                        username=config.instagram_username,
+                        password=config.instagram_password,
+                        session_id=config.instagram_session_id
+                    )
+                if not success:
+                    logger.error("Auto re-login failed. Sleeping for 3 minutes.")
+                    await asyncio.sleep(180)
+                    continue
 
             if threads:
                 async with AsyncSessionLocal() as session:

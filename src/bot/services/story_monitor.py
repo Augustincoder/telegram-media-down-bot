@@ -63,9 +63,25 @@ async def start_story_monitor(bot: Bot):
                                 username=ig_username,
                             )
                         except Exception as e:
-                            logger.error(
-                                f"Story Monitor IG {ig_username} uchun xatolik: {e}"
-                            )
+                            err_msg = str(e).lower()
+                            if "user_has_logged_out" in err_msg or "login_required" in err_msg or "403" in err_msg or "invalid request" in err_msg:
+                                ig_service.is_logged_in = False
+
+                            logger.error(f"Story Monitor IG {ig_username} uchun xatolik: {e}")
+                            
+                            if not ig_service.is_logged_in:
+                                logger.warning("Story monitor: Session expired. Attempting to re-login...")
+                                success = await ig_service.login(
+                                    session=session,
+                                    username=config.instagram_username,
+                                    password=config.instagram_password,
+                                    session_id=config.instagram_session_id
+                                )
+                                if not success:
+                                    logger.error("Auto re-login failed in story monitor. Pausing for 5 mins.")
+                                    await asyncio.sleep(300)
+                                    break  # Stop checking this round
+
                             await asyncio.sleep(5)
 
                     elif platform == "telegram":

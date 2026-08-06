@@ -41,8 +41,7 @@ class InstagramService:
                 logger.info("Session ID orqali muvaffaqiyatli kirildi!")
                 return True
             except Exception as e:
-                logger.error(f"Session ID orqali kirishda xatolik: {e}")
-                return False
+                logger.warning(f"Session ID orqali kirishda xatolik (Davom etamiz): {e}")
 
         if not username or not password:
             return False
@@ -79,8 +78,23 @@ class InstagramService:
             logger.error("Challenge Required! Could not resolve automatically.")
             return False
         except Exception as e:
-            logger.error(f"Failed to login to Instagram via password: {e}")
-            return False
+            logger.error(f"Failed to login to Instagram via password (with settings): {e}")
+            try:
+                # Clear settings and try again
+                logger.info("Trying to login without cached settings...")
+                self.client.set_settings({})
+                await loop.run_in_executor(None, self.client.login, username, password)
+                
+                settings = self.client.get_settings()
+                if state:
+                    state.value = json.dumps(settings)
+                    await session.commit()
+                
+                self.is_logged_in = True
+                return True
+            except Exception as e2:
+                logger.error(f"Failed to login even without settings: {e2}")
+                return False
 
     async def _stream_media_items_concurrently(self, media_items: list[dict]):
         """Ichki yordamchi: Yuklab olish va jo'natishni parallel (stream) qilib beradi, tartibni saqlaydi."""
@@ -139,6 +153,9 @@ class InstagramService:
         try:
             media_info = await loop.run_in_executor(None, fetch_media_info)
         except Exception as e:
+            err_msg = str(e).lower()
+            if "user_has_logged_out" in err_msg or "login_required" in err_msg or "403" in err_msg or "invalid request" in err_msg:
+                self.is_logged_in = False
             logger.error(f"Unexpected error fetching info for {url}: {e}")
             return
 
