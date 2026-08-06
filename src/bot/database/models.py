@@ -81,6 +81,7 @@ class SavedProfile(Base):
     platform: Mapped[str] = mapped_column(String, default="instagram")
     ig_username: Mapped[str] = mapped_column(String, index=True)
     ig_user_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    tg_access_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     added_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

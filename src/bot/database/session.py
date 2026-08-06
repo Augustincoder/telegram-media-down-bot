@@ -43,8 +43,12 @@ async def init_models():
     """
     async with engine.begin() as conn:
         # For production with Alembic, we wouldn't use create_all()
-        # but for this MVP SQLite setup it is perfectly fine.
         await conn.run_sync(Base.metadata.create_all)
+        try:
+            from sqlalchemy import text
+            await conn.execute(text("ALTER TABLE saved_profiles ADD COLUMN tg_access_hash VARCHAR"))
+        except Exception:
+            pass
 
 
 async def get_session() -> AsyncSession:

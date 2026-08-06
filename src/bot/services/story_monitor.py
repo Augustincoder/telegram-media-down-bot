@@ -39,11 +39,12 @@ async def start_story_monitor(bot: Bot):
                         SavedProfile.platform,
                         SavedProfile.ig_user_id,
                         SavedProfile.ig_username,
+                        SavedProfile.tg_access_hash,
                     ).distinct()
                 )
                 profiles = result.all()
 
-                for platform, ig_user_id, ig_username in profiles:
+                for platform, ig_user_id, ig_username, tg_access_hash in profiles:
                     if not ig_username:
                         continue
 
@@ -87,7 +88,7 @@ async def start_story_monitor(bot: Bot):
                     elif platform == "telegram":
                         try:
                             stories = await userbot_service.get_peer_stories_info(
-                                ig_username
+                                ig_username, access_hash=tg_access_hash
                             )
 
                             from bot.services.story_distributor import distribute_tg_stories
@@ -96,6 +97,7 @@ async def start_story_monitor(bot: Bot):
                                 session=session,
                                 stories=stories,
                                 username=ig_username,
+                                access_hash=tg_access_hash,
                             )
                         except Exception as e:
                             logger.error(

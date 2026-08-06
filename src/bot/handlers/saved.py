@@ -82,16 +82,19 @@ async def save_profile_handler(message: Message, session: AsyncSession):
             )
             ig_user_id = str(user_info.pk)
             username = user_info.username
+            tg_access_hash = None
         else:
             peer = await userbot_service.client.get_entity(username)
             ig_user_id = str(peer.id)
             username = getattr(peer, "username", username)
+            tg_access_hash = str(getattr(peer, "access_hash", "")) or None
 
         new_profile = SavedProfile(
             user_id=user_id,
             ig_username=username,
             ig_user_id=ig_user_id,
             platform=platform,
+            tg_access_hash=tg_access_hash,
         )
         session.add(new_profile)
         await session.commit()
@@ -196,11 +199,21 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
             if stories:
                 current_username = stories[0].user.username
         else:
-            stories = await userbot_service.get_peer_stories_info(profile.ig_user_id or profile.ig_username)
+            stories = await userbot_service.get_peer_stories_info(
+                profile.ig_user_id or profile.ig_username,
+                access_hash=profile.tg_access_hash
+            )
             if profile.ig_user_id:
                 peer_id = int(profile.ig_user_id) if profile.ig_user_id.lstrip('-').isdigit() else profile.ig_user_id
-                entity = await userbot_service.client.get_entity(peer_id)
-                current_username = getattr(entity, "username", profile.ig_username) or profile.ig_username
+                if isinstance(peer_id, int) and profile.tg_access_hash:
+                    from telethon.tl.types import InputPeerUser
+                    entity = InputPeerUser(user_id=peer_id, access_hash=int(profile.tg_access_hash))
+                else:
+                    entity = await userbot_service.client.get_input_entity(peer_id)
+                
+                # Fetch full entity to get updated username
+                full_entity = await userbot_service.client.get_entity(entity)
+                current_username = getattr(full_entity, "username", profile.ig_username) or profile.ig_username
 
         if current_username != profile.ig_username:
             from bot.database.models import UsernameHistory
@@ -234,13 +247,14 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
             )
         else:
             sent_count = await distribute_tg_stories(
-                bot=callback.bot,
+                bot=bot,
                 session=session,
                 stories=stories,
                 username=profile.ig_username,
                 target_chat_id=callback.from_user.id,
                 status_msg=status_msg,
-                peer_id=profile.ig_user_id
+                peer_id=profile.ig_user_id,
+                access_hash=profile.tg_access_hash,
             )
 
         await status_msg.edit_text(

@@ -59,7 +59,7 @@ class TelegramUserbot:
             self.is_connected = False
 
     async def download_story(
-        self, peer: str, story_id: int, file_path: str
+        self, peer: str, story_id: int, file_path: str, access_hash: str | None = None
     ) -> str | None:
         """
         Telegram story'ni yuklab olish
@@ -72,7 +72,11 @@ class TelegramUserbot:
         try:
             # Username/peer ni telethon entitiy'ga o'tkazamiz
             peer_id = int(peer) if str(peer).lstrip('-').isdigit() else peer
-            entity = await self.client.get_input_entity(peer_id)
+            if isinstance(peer_id, int) and access_hash:
+                from telethon.tl.types import InputPeerUser
+                entity = InputPeerUser(user_id=peer_id, access_hash=int(access_hash))
+            else:
+                entity = await self.client.get_input_entity(peer_id)
 
             # Story'ni olish
             result = await self.client(
@@ -120,19 +124,24 @@ class TelegramUserbot:
             logger.error(f"Telegram foydalanuvchisi hikoyalarini yuklashda xato: {e}")
             raise e
 
-    async def get_peer_stories_info(self, peer: str) -> list:
+    async def get_peer_stories_info(self, peer: str, access_hash: str | None = None) -> list:
         """Faqat story obyektlarini (metadata) qaytaradi, yuklamaydi."""
         if not self.is_connected:
             return []
         try:
             peer_id = int(peer) if str(peer).lstrip('-').isdigit() else peer
-            entity = await self.client.get_input_entity(peer_id)
+            if isinstance(peer_id, int) and access_hash:
+                from telethon.tl.types import InputPeerUser
+                entity = InputPeerUser(user_id=peer_id, access_hash=int(access_hash))
+            else:
+                entity = await self.client.get_input_entity(peer_id)
+            
             result = await self.client(GetPeerStoriesRequest(peer=entity))
             if not result.stories or not result.stories.stories:
                 return []
             return result.stories.stories
         except Exception as e:
-            logger.error(f"Failed to get TG stories info for {peer}: {e}")
+            logger.error(f"Telegram hikoyalar metadata sini olishda xato: {e}")
             return []
 
     async def download_message_media(self, peer: str, message_id: int, file_path: str) -> str | None:

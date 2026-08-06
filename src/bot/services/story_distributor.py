@@ -88,6 +88,7 @@ async def distribute_tg_stories(
     target_chat_id: int | None = None,
     status_msg: Message | None = None,
     peer_id: str | int | None = None,
+    access_hash: str | None = None,
 ):
     total = len(stories)
     sent_count = 0
@@ -127,7 +128,7 @@ async def distribute_tg_stories(
         file_path = f"downloads/tg_story_{username}_{story_id}.mp4"
         os.makedirs("downloads", exist_ok=True)
         try:
-            downloaded = await userbot_service.download_story(download_peer, story.id, file_path)
+            downloaded = await userbot_service.download_story(download_peer, story.id, file_path, access_hash=access_hash)
             if downloaded:
                 media = FSInputFile(downloaded)
                 is_video = downloaded.endswith(".mp4")
