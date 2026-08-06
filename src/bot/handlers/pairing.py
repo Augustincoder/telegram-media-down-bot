@@ -79,6 +79,11 @@ async def linked_accounts_handler(message: Message, session: AsyncSession):
     await message.answer(text)
 
 
+import random
+import string
+
+UNLINK_CONFIRMATIONS = {}
+
 @router.message(Command("unlink_all"))
 async def unlink_all_handler(message: Message, session: AsyncSession):
     user_id = message.from_user.id
@@ -91,9 +96,30 @@ async def unlink_all_handler(message: Message, session: AsyncSession):
         await message.answer("Sizda bog'langan Instagram akkaunt topilmadi.")
         return
 
+    random_word = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    UNLINK_CONFIRMATIONS[user_id] = random_word
+
+    await message.answer(
+        "⚠️ <b>DIQQAT!</b> Siz barcha ulangan Instagram akkauntlarini uzmoqchisiz.\n\n"
+        "Buni tasdiqlash uchun quyidagi tasodifiy so'zni nusxalab (ustiga bosib) menga yuboring:\n\n"
+        f"<code>{random_word}</code>"
+    )
+
+@router.message(lambda msg: msg.from_user.id in UNLINK_CONFIRMATIONS and msg.text and msg.text.strip() == UNLINK_CONFIRMATIONS[msg.from_user.id])
+async def confirm_unlink_all_handler(message: Message, session: AsyncSession):
+    user_id = message.from_user.id
+    
+    result = await session.execute(
+        select(InstagramPairing).where(InstagramPairing.user_id == user_id)
+    )
+    pairings = result.scalars().all()
+
     for p in pairings:
         await session.delete(p)
     await session.commit()
+    
+    if user_id in UNLINK_CONFIRMATIONS:
+        del UNLINK_CONFIRMATIONS[user_id]
 
     await message.answer(
         "🗑 Barcha Instagram profillar bilan bog'lanish muvaffaqiyatli uzildi!"
