@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Removed SQLite Support**: Completely removed SQLite support from the codebase. The project is now 100% migrated to PostgreSQL for production deployments (e.g., Northflank). Removed `aiosqlite` dependency, updated `Dockerfile` to strip volume definitions, and enforced `DATABASE_URL` as a strictly required environment variable.
 - **Codebase Refactor and Linting**: Performed a comprehensive codebase scan utilizing `ruff`. Resolved minor bugs, unused variables, unsorted imports, and extraneous f-string declarations (e.g. in `story_distributor.py`). Cleaned up and optimized import logic across the `bot` directory to eliminate spaghetti patterns and improve overall stability.
 
 ### Fixed

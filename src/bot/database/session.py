@@ -8,15 +8,10 @@ from .models import Base
 # Ensure env variables are loaded (the user is preparing .env right now)
 load_dotenv()
 
-# Default to SQLite if not provided, exactly as requested
+# Only PostgreSQL is supported for production
 DATABASE_URL = config.database_url
 
-if DATABASE_URL.startswith("sqlite"):
-    import pathlib
-
-    db_path = DATABASE_URL.split("///")[-1]
-    pathlib.Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-elif DATABASE_URL.startswith("postgres://"):
+if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
 elif DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith(
     "postgresql+asyncpg://"
@@ -25,8 +20,6 @@ elif DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith(
 
 if "postgresql+asyncpg://" in DATABASE_URL and "sslmode=" in DATABASE_URL:
     DATABASE_URL = DATABASE_URL.replace("sslmode=", "ssl=")
-
-
 # Create the async engine
 engine = create_async_engine(DATABASE_URL, echo=False)
 
