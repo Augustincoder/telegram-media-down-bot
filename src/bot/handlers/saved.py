@@ -12,7 +12,7 @@ from aiogram.types import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from bot.database.models import SavedProfile
+from bot.database.models import SavedProfile, StoryCache, HighlightTask
 from bot.services.instagram import ig_service
 from bot.services.telegram_userbot import userbot_service
 
@@ -35,9 +35,7 @@ def extract_username(text: str) -> str | None:
 async def save_profile_handler(message: Message, session: AsyncSession):
     parts = message.text.split()
     if len(parts) < 2:
-        await message.answer(
-            "❌ Noto'g'ri format! /save ig @username yoki /save tg @username"
-        )
+        await message.answer("❌ Noto'g'ri format! /save ig @username yoki /save tg @username")
         return
 
     platform = "instagram"
@@ -54,15 +52,11 @@ async def save_profile_handler(message: Message, session: AsyncSession):
 
     user_id = message.from_user.id
 
-    result = await session.execute(
-        select(SavedProfile).where(SavedProfile.user_id == user_id)
-    )
+    result = await session.execute(select(SavedProfile).where(SavedProfile.user_id == user_id))
     saved_profiles = result.scalars().all()
 
     if len(saved_profiles) >= 10:
-        await message.answer(
-            "❌ Limit tugadi! Siz maksimal 10 ta profil saqlay olasiz."
-        )
+        await message.answer("❌ Limit tugadi! Siz maksimal 10 ta profil saqlay olasiz.")
         return
 
     for p in saved_profiles:
@@ -70,9 +64,7 @@ async def save_profile_handler(message: Message, session: AsyncSession):
             await message.answer("✅ Bu profil allaqachon saqlangan.")
             return
 
-    wait_msg = await message.answer(
-        f"🔍 <b>@{username}</b> ({platform}) qidirilmoqda..."
-    )
+    wait_msg = await message.answer(f"🔍 <b>@{username}</b> ({platform}) qidirilmoqda...")
 
     try:
         if platform == "instagram":
@@ -108,25 +100,17 @@ async def save_profile_handler(message: Message, session: AsyncSession):
 
 @router.message(Command("saved"))
 @router.message(F.text == "💾 Saqlangan profillar")
-async def list_saved_profiles(
-    message: Message, session: AsyncSession, user_id: int | None = None
-):
+async def list_saved_profiles(message: Message, session: AsyncSession, user_id: int | None = None):
     if user_id is None:
         user_id = message.from_user.id
-    result = await session.execute(
-        select(SavedProfile).where(SavedProfile.user_id == user_id)
-    )
+    result = await session.execute(select(SavedProfile).where(SavedProfile.user_id == user_id))
     profiles = result.scalars().all()
 
     if not profiles:
-        await message.answer(
-            "Sizda hech qanday saqlangan profil yo'q. /save orqali qo'shing."
-        )
+        await message.answer("Sizda hech qanday saqlangan profil yo'q. /save orqali qo'shing.")
         return
 
-    wait_msg = await message.answer(
-        "⏳ Saqlangan profillarning hikoyalari tekshirilmoqda..."
-    )
+    wait_msg = await message.answer("⏳ Saqlangan profillarning hikoyalari tekshirilmoqda...")
 
     keyboard = []
     loop = asyncio.get_running_loop()
@@ -148,13 +132,9 @@ async def list_saved_profiles(
         except Exception:
             text = f"⚠️ {emoji} @{p.ig_username}"
 
-        keyboard.append(
-            [InlineKeyboardButton(text=text, callback_data=f"get_story_{p.id}")]
-        )
+        keyboard.append([InlineKeyboardButton(text=text, callback_data=f"get_story_{p.id}")])
 
-    keyboard.append(
-        [InlineKeyboardButton(text="🔄 Yangilash", callback_data="refresh_saved")]
-    )
+    keyboard.append([InlineKeyboardButton(text="🔄 Yangilash", callback_data="refresh_saved")])
 
     markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     await wait_msg.edit_text("⭐ <b>Saqlangan profillaringiz:</b>", reply_markup=markup)
@@ -163,11 +143,10 @@ async def list_saved_profiles(
 @router.callback_query(F.data == "refresh_saved")
 async def refresh_saved(callback: CallbackQuery, session: AsyncSession):
     import contextlib
+
     with contextlib.suppress(Exception):
         await callback.message.delete()
-    await list_saved_profiles(
-        callback.message, session, user_id=callback.from_user.id
-    )
+    await list_saved_profiles(callback.message, session, user_id=callback.from_user.id)
     await callback.answer()
 
 
@@ -175,9 +154,7 @@ async def refresh_saved(callback: CallbackQuery, session: AsyncSession):
 async def process_story_request(callback: CallbackQuery, session: AsyncSession):
     profile_id = int(callback.data.split("_")[2])
 
-    result = await session.execute(
-        select(SavedProfile).where(SavedProfile.id == profile_id)
-    )
+    result = await session.execute(select(SavedProfile).where(SavedProfile.id == profile_id))
     profile = result.scalar_one_or_none()
 
     if not profile:
@@ -201,27 +178,34 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                 current_username = stories[0].user.username
         else:
             stories = await userbot_service.get_peer_stories_info(
-                profile.ig_user_id or profile.ig_username,
-                access_hash=profile.tg_access_hash
+                profile.ig_user_id or profile.ig_username, access_hash=profile.tg_access_hash
             )
             if profile.ig_user_id:
-                peer_id = int(profile.ig_user_id) if profile.ig_user_id.lstrip('-').isdigit() else profile.ig_user_id
+                peer_id = (
+                    int(profile.ig_user_id)
+                    if profile.ig_user_id.lstrip("-").isdigit()
+                    else profile.ig_user_id
+                )
                 if isinstance(peer_id, int) and profile.tg_access_hash:
                     from telethon.tl.types import InputPeerUser
+
                     entity = InputPeerUser(user_id=peer_id, access_hash=int(profile.tg_access_hash))
                 else:
                     entity = await userbot_service.client.get_input_entity(peer_id)
-                
+
                 # Fetch full entity to get updated username
                 full_entity = await userbot_service.client.get_entity(entity)
-                current_username = getattr(full_entity, "username", profile.ig_username) or profile.ig_username
+                current_username = (
+                    getattr(full_entity, "username", profile.ig_username) or profile.ig_username
+                )
 
         if current_username != profile.ig_username:
             from bot.database.models import UsernameHistory
+
             history = UsernameHistory(
                 profile_id=profile.id,
                 old_username=profile.ig_username,
-                new_username=current_username
+                new_username=current_username,
             )
             session.add(history)
             profile.ig_username = current_username
@@ -244,7 +228,7 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                 stories=stories,
                 username=profile.ig_username,
                 target_chat_id=callback.from_user.id,
-                status_msg=status_msg
+                status_msg=status_msg,
             )
         else:
             sent_count = await distribute_tg_stories(
@@ -265,6 +249,7 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
     except Exception as e:
         await status_msg.edit_text(f"❌ Xatolik yuz berdi: {e}")
 
+
 @router.message(Command("recover_hashes"))
 async def recover_hashes_handler(message: Message, session: AsyncSession):
     if not userbot_service.is_connected:
@@ -274,41 +259,188 @@ async def recover_hashes_handler(message: Message, session: AsyncSession):
     wait_msg = await message.answer("🔍 Barcha Telegram profillarni tiklash boshlandi...")
 
     result = await session.execute(
-        select(SavedProfile).where(SavedProfile.platform == "telegram", SavedProfile.tg_access_hash == None)
+        select(SavedProfile).where(
+            SavedProfile.platform == "telegram", SavedProfile.tg_access_hash == None
+        )
     )
     profiles_to_recover = result.scalars().all()
 
     if not profiles_to_recover:
-        await wait_msg.edit_text("✅ Tiklanishi kerak bo'lgan Telegram profillar yo'q (hammasida access_hash bor).")
+        await wait_msg.edit_text(
+            "✅ Tiklanishi kerak bo'lgan Telegram profillar yo'q (hammasida access_hash bor)."
+        )
         return
 
-    await wait_msg.edit_text(f"⏳ {len(profiles_to_recover)} ta profil topildi. Ularni izlash boshlandi (bu biroz vaqt olishi mumkin)...")
+    await wait_msg.edit_text(
+        f"⏳ {len(profiles_to_recover)} ta profil topildi. Ularni izlash boshlandi (bu biroz vaqt olishi mumkin)..."
+    )
 
     recovered_count = 0
     try:
         # Fetch all dialogs to force telethon to cache entities
         dialogs = await userbot_service.client.get_dialogs(limit=500)
-        
+
         for profile in profiles_to_recover:
             if not profile.ig_user_id:
                 continue
-                
+
             target_id = int(profile.ig_user_id)
-            
+
             # Find in dialogs
             found_entity = None
             for dialog in dialogs:
                 if getattr(dialog.entity, "id", None) == target_id:
                     found_entity = dialog.entity
                     break
-                    
-            if found_entity and hasattr(found_entity, "access_hash"):
-                profile.tg_access_hash = str(found_entity.access_hash)
-                profile.ig_username = getattr(found_entity, "username", profile.ig_username) or profile.ig_username
-                recovered_count += 1
-                
+
+            if found_entity:
+                profile.tg_access_hash = str(getattr(found_entity, "access_hash", "")) or None
+                if profile.tg_access_hash:
+                    recovered_count += 1
+
         await session.commit()
-        await wait_msg.edit_text(f"✅ Tiklash yakunlandi. {recovered_count}/{len(profiles_to_recover)} ta profil muvaffaqiyatli tiklandi.")
-        
+        await wait_msg.edit_text(
+            f"✅ Tiklash yakunlandi. {recovered_count} ta profil muvaffaqiyatli tiklandi."
+        )
+
+    except Exception as e:
+        await wait_msg.edit_text(f"❌ Xatolik yuz berdi: {e}")
+
+
+@router.message(Command("highlights"))
+async def fetch_highlights_cmd(message: Message, session: AsyncSession):
+    parts = message.text.split()
+    if len(parts) < 3 or parts[1].lower() not in ["ig", "tg"]:
+        await message.answer(
+            "❌ Noto'g'ri format! Iltimos, /highlights ig @username yoki /highlights tg @username ko'rinishida yuboring."
+        )
+        return
+
+    platform = "instagram" if parts[1].lower() == "ig" else "telegram"
+    username = parts[2].replace("@", "")
+
+    # Check if saved profile exists
+    result = await session.execute(
+        select(SavedProfile).where(
+            SavedProfile.user_id == message.from_user.id,
+            SavedProfile.platform == platform,
+            SavedProfile.ig_username == username,
+        )
+    )
+    profile = result.scalar_one_or_none()
+
+    if not profile:
+        await message.answer(
+            f"❌ Sizda @{username} {platform} profili saqlanmagan. Avval /save orqali saqlang."
+        )
+        return
+
+    wait_msg = await message.answer(
+        f"🔍 <b>@{username}</b> ning arxiv (highlight) hikoyalari izlanmoqda. Bu biroz vaqt olishi mumkin..."
+    )
+
+    queued = 0
+    try:
+        if platform == "instagram":
+            loop = asyncio.get_running_loop()
+            highlights = await loop.run_in_executor(
+                None, ig_service.client.user_highlights, profile.ig_user_id
+            )
+
+            for hl in highlights:
+                hl_info = await loop.run_in_executor(None, ig_service.client.highlight_info, hl.pk)
+                for story in hl_info:
+                    story_id = str(story.pk)
+
+                    # Deduplication check
+                    cache_check = await session.execute(
+                        select(StoryCache).where(
+                            StoryCache.story_id == story_id, StoryCache.platform == "instagram"
+                        )
+                    )
+                    if cache_check.scalar_one_or_none():
+                        continue
+
+                    task_check = await session.execute(
+                        select(HighlightTask).where(
+                            HighlightTask.story_id == story_id,
+                            HighlightTask.platform == "instagram",
+                        )
+                    )
+                    if task_check.scalar_one_or_none():
+                        continue
+
+                    new_task = HighlightTask(
+                        profile_id=profile.id,
+                        platform="instagram",
+                        story_id=story_id,
+                        highlight_pk=str(hl.pk),
+                        status="PENDING",
+                    )
+                    session.add(new_task)
+                    queued += 1
+            await session.commit()
+
+        else:  # telegram
+            if not userbot_service.is_connected:
+                await wait_msg.edit_text("❌ Userbot ishlamayapti.")
+                return
+
+            from telethon.tl.functions.stories import GetPinnedStoriesRequest
+
+            peer_id = (
+                int(profile.ig_user_id)
+                if profile.ig_user_id.lstrip("-").isdigit()
+                else profile.ig_user_id
+            )
+            if isinstance(peer_id, int) and profile.tg_access_hash:
+                from telethon.tl.types import InputPeerUser
+
+                entity = InputPeerUser(user_id=peer_id, access_hash=int(profile.tg_access_hash))
+            else:
+                entity = await userbot_service.client.get_input_entity(peer_id)
+
+            pinned = await userbot_service.client(GetPinnedStoriesRequest(peer=entity))
+            if pinned.stories and pinned.stories.stories:
+                for story in pinned.stories.stories:
+                    story_id = str(story.id)
+
+                    # Deduplication check
+                    cache_check = await session.execute(
+                        select(StoryCache).where(
+                            StoryCache.story_id == story_id, StoryCache.platform == "telegram"
+                        )
+                    )
+                    if cache_check.scalar_one_or_none():
+                        continue
+
+                    task_check = await session.execute(
+                        select(HighlightTask).where(
+                            HighlightTask.story_id == story_id, HighlightTask.platform == "telegram"
+                        )
+                    )
+                    if task_check.scalar_one_or_none():
+                        continue
+
+                    new_task = HighlightTask(
+                        profile_id=profile.id,
+                        platform="telegram",
+                        story_id=story_id,
+                        status="PENDING",
+                    )
+                    session.add(new_task)
+                    queued += 1
+            await session.commit()
+
+        if queued > 0:
+            await wait_msg.edit_text(
+                f"✅ <b>@{username}</b> profilidan <b>{queued} ta</b> yangi arxiv hikoyalar topildi va navbatga (Queue) qo'shildi!\n\n"
+                f"Tizim ularni ehtiyotkorlik bilan yuklab ola boshlaydi. Yuklab bo'lingach, ular /show_all_saved ro'yxatida paydo bo'ladi."
+            )
+        else:
+            await wait_msg.edit_text(
+                f"ℹ️ <b>@{username}</b> profilida yangi arxiv hikoyalar topilmadi yoki barchasi allaqachon kanalga saqlab bo'lingan."
+            )
+
     except Exception as e:
         await wait_msg.edit_text(f"❌ Xatolik yuz berdi: {e}")

@@ -21,9 +21,7 @@ class User(Base):
     )
 
     # Relationships
-    downloads: Mapped[list["Download"]] = relationship(
-        "Download", back_populates="user"
-    )
+    downloads: Mapped[list["Download"]] = relationship("Download", back_populates="user")
     pairing: Mapped[Optional["InstagramPairing"]] = relationship(
         "InstagramPairing", back_populates="user", uselist=False
     )
@@ -115,6 +113,7 @@ class StoryCache(Base):
     def __repr__(self) -> str:
         return f"<StoryCache(ig_username={self.ig_username}, story_id={self.story_id})>"
 
+
 class UsernameHistory(Base):
     __tablename__ = "username_history"
 
@@ -130,3 +129,25 @@ class UsernameHistory(Base):
 
     def __repr__(self) -> str:
         return f"<UsernameHistory(profile_id={self.profile_id}, old={self.old_username}, new={self.new_username})>"
+
+
+class HighlightTask(Base):
+    __tablename__ = "highlight_tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    profile_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("saved_profiles.id"))
+    platform: Mapped[str] = mapped_column(String(20))
+    story_id: Mapped[str] = mapped_column(String, index=True)
+    highlight_pk: Mapped[str | None] = mapped_column(String, nullable=True)  # for IG folders
+    status: Mapped[str] = mapped_column(String(20), default="PENDING")  # PENDING, DONE, FAILED
+    added_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    processed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    profile: Mapped["SavedProfile"] = relationship("SavedProfile")
+
+    def __repr__(self) -> str:
+        return f"<HighlightTask(id={self.id}, story_id={self.story_id}, status={self.status})>"

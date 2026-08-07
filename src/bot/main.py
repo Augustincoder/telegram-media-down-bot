@@ -69,6 +69,11 @@ async def main():
         from bot.services.cron_cleaner import start_cron_cleaner
         asyncio.create_task(start_cron_cleaner())
 
+        # Start Highlight Engine Workers
+        from bot.services.highlight_engine import start_ig_highlight_worker, start_tg_highlight_worker
+        asyncio.create_task(start_ig_highlight_worker(bot))
+        asyncio.create_task(start_tg_highlight_worker(bot))
+
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)
     finally:
