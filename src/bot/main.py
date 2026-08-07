@@ -10,7 +10,6 @@ from bot.database.session import AsyncSessionLocal, init_models
 from bot.handlers import get_routers
 from bot.middlewares.db import DbSessionMiddleware
 from bot.services.instagram import ig_service
-from bot.services.instagram_polling import start_instagram_polling
 from bot.services.story_monitor import start_story_monitor
 from bot.services.telegram_userbot import userbot_service
 
@@ -56,11 +55,11 @@ async def main():
 
     logger.info("Bot is now polling...")
     try:
-        # Orqa fonda (background) Instagram DM polling ni ishga tushirish
+        # Orqa fonda (background) story monitoring ni ishga tushirish
         if config.instagram_session_id or (
             config.instagram_username and config.instagram_password
         ):
-            asyncio.create_task(start_instagram_polling(bot))
+            # asyncio.create_task(start_instagram_polling(bot))  # DM polling vaqtincha o'chirildi (Ban xavfi)
             asyncio.create_task(start_story_monitor(bot))
 
         # Start Telegram Userbot (if configured)

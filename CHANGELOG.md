@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Linting & Code Quality**: Added `ruff` and applied PEP8 compliance across the codebase.
 
 ### Changed
+- **Instagram DM Polling Disabled**: Temporarily disabled and backed up `instagram_polling.py` (DM inbox checking) to prevent immediate bans and shadowbans on newly created Instagram accounts. The bot will now exclusively rely on Telegram for links and `story_monitor.py` for periodic story downloads without risking the account's trust score.
 - **Dynamic Polling Backoff**: Updated `instagram_polling.py` to use a dynamic sleep interval. It starts at 45 seconds and increments by 10 seconds (up to a maximum of 180 seconds) when no new messages are detected. This significantly lowers the risk of Instagram rate-limiting (429/403) while maintaining responsiveness.
 - **Routing Architecture Refactor**: Removed massive "spaghetti code" `if/else` text matchers from `messages.py`. Transitioned `📥 Yuklab olish`, `⚙️ Sozlamalar`, `💾 Saqlangan profillar`, and `🔗 Akkaunt ulash` handlers to modular Aiogram `@router.message(F.text == "...")` decorators across their respective files (`saved.py`, `pairing.py`, `commands.py`, etc.).
 - **Enhanced Story Caching**: Improved Telegram story downloading mechanism to ensure temporary files are properly deleted from Northflank local storage utilizing strict `finally` blocks, resolving potential local disk exhaustion.
