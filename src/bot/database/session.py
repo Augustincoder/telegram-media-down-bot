@@ -44,8 +44,12 @@ async def init_models():
     async with engine.begin() as conn:
         # For production with Alembic, we wouldn't use create_all()
         await conn.run_sync(Base.metadata.create_all)
+        
+    # Run the migration in a separate transaction so a failure doesn't rollback create_all
+    async with engine.begin() as conn:
         try:
             from sqlalchemy import text
+            # Ignore errors (like duplicate column)
             await conn.execute(text("ALTER TABLE saved_profiles ADD COLUMN tg_access_hash VARCHAR"))
         except Exception:
             pass
