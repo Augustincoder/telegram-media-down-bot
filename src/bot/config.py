@@ -18,6 +18,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("INSTAGRAM_SESSION_ID", "INSTAGRAM_SESSIONID"),
     )
+    instagram_session_json: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("INSTAGRAM_SESSION_JSON", "IG_SESSION_JSON"),
+    )
 
     storage_channel_id: str | None = Field(
         default=None,

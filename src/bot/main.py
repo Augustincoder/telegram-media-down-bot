@@ -28,8 +28,8 @@ async def main():
     await init_models()
     logger.info("Database models initialized.")
 
-    # Init Instagram Service (Login using Session ID or Credentials)
-    if config.instagram_session_id or (
+    # Init Instagram Service (Login using Session ID, JSON, or Credentials)
+    if config.instagram_session_id or config.instagram_session_json or (
         config.instagram_username and config.instagram_password
     ):
         async with AsyncSessionLocal() as session:
@@ -38,6 +38,7 @@ async def main():
                 username=config.instagram_username,
                 password=config.instagram_password,
                 session_id=config.instagram_session_id,
+                session_json=config.instagram_session_json,
             )
 
     # Setup Bot and Dispatcher
@@ -56,7 +57,7 @@ async def main():
     logger.info("Bot is now polling...")
     try:
         # Orqa fonda (background) story monitoring ni ishga tushirish
-        if config.instagram_session_id or (
+        if config.instagram_session_id or config.instagram_session_json or (
             config.instagram_username and config.instagram_password
         ):
             # asyncio.create_task(start_instagram_polling(bot))  # DM polling vaqtincha o'chirildi (Ban xavfi)

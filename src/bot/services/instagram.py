@@ -29,11 +29,29 @@ class InstagramService:
         username: str | None,
         password: str | None,
         session_id: str | None = None,
+        session_json: str | None = None,
     ) -> bool:
+        import json
+        loop = asyncio.get_running_loop()
+
+        # 1-variant: Agar to'liq session JSON berilgan bo'lsa (Eng ishonchli usul)
+        if session_json:
+            logger.info("Session JSON topildi. Uni ishlatib kirishga urinamiz...")
+            try:
+                settings = json.loads(session_json)
+                self.client.set_settings(settings)
+                # verify login state
+                await loop.run_in_executor(None, self.client.get_timeline_feed)
+                self.is_logged_in = True
+                logger.info("Session JSON orqali muvaffaqiyatli kirildi!")
+                return True
+            except Exception as e:
+                logger.warning(f"Session JSON orqali kirishda xatolik (Davom etamiz): {e}")
+
+        # 2-variant: Faqat Session ID berilgan bo'lsa
         if session_id:
             logger.info("Session ID topildi. Uni ishlatib kirishga urinamiz...")
             try:
-                loop = asyncio.get_running_loop()
                 await loop.run_in_executor(
                     None, self.client.login_by_sessionid, session_id
                 )
