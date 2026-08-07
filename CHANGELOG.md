@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`/show_all_saved` Command**: Introduced a new UI workflow that displays all saved profiles and allows users to browse their chronologically archived stories directly from the private Telegram backup channel. Users can view stories selectively by date or use a new "Download All" button to forward the entire archive of a user's stories directly into their chat instantly without any external API calls.
 - **Changelog Enforcement Rule**: Implemented a `.cursorrules` file at the project root. This instructs all future AI assistant interactions to strictly document changes in `CHANGELOG.md` prior to executing any `git commit` commands, ensuring a professional and exhaustive audit trail.
 - **Expandable Blockquote Captions**: When stories are downloaded and backed up to the private Telegram storage channel, they now include a rich metadata caption. The primary text shows the profile name and platform, while an expandable blockquote (Telegram Spoiler format) hides detailed information including username, platform, posted timestamp, and download timestamp.
 - **`/recover_hashes` Command**: Added a dedicated command for admins to iterate through existing saved profiles in the database and automatically fetch their `access_hash` via Telethon, resolving the issue where old profiles without usernames could not be fetched.
