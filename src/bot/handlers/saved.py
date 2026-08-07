@@ -79,7 +79,8 @@ async def save_profile_handler(message: Message, session: AsyncSession):
             peer = await userbot_service.client.get_entity(username)
             ig_user_id = str(peer.id)
             username = getattr(peer, "username", username)
-            tg_access_hash = str(getattr(peer, "access_hash", "")) or None
+            hash_val = getattr(peer, "access_hash", None)
+            tg_access_hash = str(hash_val) if hash_val is not None else None
 
         new_profile = SavedProfile(
             user_id=user_id,
@@ -427,7 +428,7 @@ async def fetch_highlights_cmd(message: Message, session: AsyncSession):
                 except ValueError:
                     entity = await userbot_service.client.get_input_entity(profile.ig_username)
 
-            pinned = await userbot_service.client(GetPinnedStoriesRequest(peer=entity))
+            pinned = await userbot_service.client(GetPinnedStoriesRequest(peer=entity, offset_id=0, limit=100))
             if pinned.stories and pinned.stories.stories:
                 for story in pinned.stories.stories:
                     story_id = str(story.id)
