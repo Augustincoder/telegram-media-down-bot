@@ -187,9 +187,17 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                     else profile.ig_user_id
                 )
                 if isinstance(peer_id, int) and profile.tg_access_hash:
-                    from telethon.tl.types import InputPeerUser
+                    from telethon.tl.types import InputPeerChannel, InputPeerUser, InputPeerChat
 
-                    entity = InputPeerUser(user_id=peer_id, access_hash=int(profile.tg_access_hash))
+                    acc_hash = int(profile.tg_access_hash)
+                    if peer_id < 0:
+                        s_id = str(peer_id)
+                        if s_id.startswith("-100"):
+                            entity = InputPeerChannel(channel_id=int(s_id[4:]), access_hash=acc_hash)
+                        else:
+                            entity = InputPeerChat(chat_id=int(s_id[1:]))
+                    else:
+                        entity = InputPeerUser(user_id=peer_id, access_hash=acc_hash)
                 else:
                     entity = await userbot_service.client.get_input_entity(peer_id)
 
@@ -319,12 +327,17 @@ async def fetch_highlights_cmd(message: Message, session: AsyncSession):
     platform = "instagram" if parts[1].lower() == "ig" else "telegram"
     username = parts[2].replace("@", "")
 
+    from sqlalchemy import or_
+
     # Check if saved profile exists
     result = await session.execute(
         select(SavedProfile).where(
             SavedProfile.user_id == message.from_user.id,
             SavedProfile.platform == platform,
-            SavedProfile.ig_username == username,
+            or_(
+                SavedProfile.ig_username == username,
+                SavedProfile.ig_user_id == username
+            )
         )
     )
     profile = result.scalar_one_or_none()
@@ -336,7 +349,7 @@ async def fetch_highlights_cmd(message: Message, session: AsyncSession):
         return
 
     wait_msg = await message.answer(
-        f"🔍 <b>@{username}</b> ning arxiv (highlight) hikoyalari izlanmoqda. Bu biroz vaqt olishi mumkin..."
+        f"🔍 <b>@{profile.ig_username}</b> ning arxiv (highlight) hikoyalari izlanmoqda. Bu biroz vaqt olishi mumkin..."
     )
 
     queued = 0
@@ -394,9 +407,17 @@ async def fetch_highlights_cmd(message: Message, session: AsyncSession):
                 else profile.ig_user_id
             )
             if isinstance(peer_id, int) and profile.tg_access_hash:
-                from telethon.tl.types import InputPeerUser
+                from telethon.tl.types import InputPeerChannel, InputPeerUser, InputPeerChat
 
-                entity = InputPeerUser(user_id=peer_id, access_hash=int(profile.tg_access_hash))
+                acc_hash = int(profile.tg_access_hash)
+                if peer_id < 0:
+                    s_id = str(peer_id)
+                    if s_id.startswith("-100"):
+                        entity = InputPeerChannel(channel_id=int(s_id[4:]), access_hash=acc_hash)
+                    else:
+                        entity = InputPeerChat(chat_id=int(s_id[1:]))
+                else:
+                    entity = InputPeerUser(user_id=peer_id, access_hash=acc_hash)
             else:
                 entity = await userbot_service.client.get_input_entity(peer_id)
 

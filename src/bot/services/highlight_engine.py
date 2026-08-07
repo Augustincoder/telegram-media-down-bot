@@ -156,9 +156,17 @@ async def _process_tg_highlight_batch(bot: Bot):
                     else profile.ig_user_id
                 )
                 if isinstance(peer_id, int) and profile.tg_access_hash:
-                    from telethon.tl.types import InputPeerUser
+                    from telethon.tl.types import InputPeerChannel, InputPeerUser, InputPeerChat
 
-                    entity = InputPeerUser(user_id=peer_id, access_hash=int(profile.tg_access_hash))
+                    acc_hash = int(profile.tg_access_hash)
+                    if peer_id < 0:
+                        s_id = str(peer_id)
+                        if s_id.startswith("-100"):
+                            entity = InputPeerChannel(channel_id=int(s_id[4:]), access_hash=acc_hash)
+                        else:
+                            entity = InputPeerChat(chat_id=int(s_id[1:]))
+                    else:
+                        entity = InputPeerUser(user_id=peer_id, access_hash=acc_hash)
                 else:
                     entity = await userbot_service.client.get_input_entity(peer_id)
 

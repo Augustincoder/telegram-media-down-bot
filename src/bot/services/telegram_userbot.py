@@ -72,8 +72,16 @@ class TelegramUserbot:
             # Username/peer ni telethon entitiy'ga o'tkazamiz
             peer_id = int(peer) if str(peer).lstrip('-').isdigit() else peer
             if isinstance(peer_id, int) and access_hash:
-                from telethon.tl.types import InputPeerUser
-                entity = InputPeerUser(user_id=peer_id, access_hash=int(access_hash))
+                from telethon.tl.types import InputPeerChannel, InputPeerUser, InputPeerChat
+                acc_hash = int(access_hash)
+                if peer_id < 0:
+                    s_id = str(peer_id)
+                    if s_id.startswith("-100"):
+                        entity = InputPeerChannel(channel_id=int(s_id[4:]), access_hash=acc_hash)
+                    else:
+                        entity = InputPeerChat(chat_id=int(s_id[1:]))
+                else:
+                    entity = InputPeerUser(user_id=peer_id, access_hash=acc_hash)
             else:
                 entity = await self.client.get_input_entity(peer_id)
 
@@ -130,8 +138,16 @@ class TelegramUserbot:
         try:
             peer_id = int(peer) if str(peer).lstrip('-').isdigit() else peer
             if isinstance(peer_id, int) and access_hash:
-                from telethon.tl.types import InputPeerUser
-                entity = InputPeerUser(user_id=peer_id, access_hash=int(access_hash))
+                from telethon.tl.types import InputPeerChannel, InputPeerUser, InputPeerChat
+                acc_hash = int(access_hash)
+                if peer_id < 0:
+                    s_id = str(peer_id)
+                    if s_id.startswith("-100"):
+                        entity = InputPeerChannel(channel_id=int(s_id[4:]), access_hash=acc_hash)
+                    else:
+                        entity = InputPeerChat(chat_id=int(s_id[1:]))
+                else:
+                    entity = InputPeerUser(user_id=peer_id, access_hash=acc_hash)
             else:
                 entity = await self.client.get_input_entity(peer_id)
             
