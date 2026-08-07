@@ -12,7 +12,7 @@ from aiogram.types import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from bot.database.models import SavedProfile, StoryCache, HighlightTask
+from bot.database.models import HighlightTask, SavedProfile, StoryCache
 from bot.services.instagram import ig_service
 from bot.services.telegram_userbot import userbot_service
 

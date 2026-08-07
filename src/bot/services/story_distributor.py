@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime
 
 from aiogram import Bot
 from aiogram.types import BufferedInputFile, FSInputFile, Message
@@ -13,20 +14,18 @@ from bot.services.telegram_userbot import userbot_service
 
 logger = logging.getLogger(__name__)
 
-from datetime import datetime
-
 def generate_story_caption(username: str, platform: str, posted_time: datetime | None = None) -> str:
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     posted_str = posted_time.strftime("%Y-%m-%d %H:%M:%S") if posted_time else "Noma'lum"
     emoji = "📸" if platform == "instagram" else "✈️"
     
     caption = f"📥 <b>{username}</b> {emoji} hikoyasi\n"
-    caption += f"<blockquote expandable>"
+    caption += "<blockquote expandable>"
     caption += f"<b>👤 Profil:</b> @{username}\n"
     caption += f"<b>🌐 Tarmoq:</b> {platform.capitalize()}\n"
     caption += f"<b>🕰 Qo'yilgan:</b> {posted_str}\n"
     caption += f"<b>💾 Saqlangan:</b> {now_str}"
-    caption += f"</blockquote>"
+    caption += "</blockquote>"
     
     return caption
 

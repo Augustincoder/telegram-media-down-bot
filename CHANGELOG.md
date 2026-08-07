@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Codebase Refactor and Linting**: Performed a comprehensive codebase scan utilizing `ruff`. Resolved minor bugs, unused variables, unsorted imports, and extraneous f-string declarations (e.g. in `story_distributor.py`). Cleaned up and optimized import logic across the `bot` directory to eliminate spaghetti patterns and improve overall stability.
+
 ### Added
 - **Highlight Engine (Background Queue Processor)**: Built a complex, enterprise-grade job scheduling system (`highlight_engine.py`) designed to safely download Instagram Highlights and Telegram Pinned Stories.
 - **`/highlights [ig|tg] @username` Command**: Added a command to scan a user's pinned stories/highlights without immediately downloading them. The command discovers all stories and saves them as `PENDING` jobs in a new `HighlightTask` database table to prevent immediate API rate limits.

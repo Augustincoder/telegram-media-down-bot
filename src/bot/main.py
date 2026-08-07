@@ -70,7 +70,10 @@ async def main():
         asyncio.create_task(start_cron_cleaner())
 
         # Start Highlight Engine Workers
-        from bot.services.highlight_engine import start_ig_highlight_worker, start_tg_highlight_worker
+        from bot.services.highlight_engine import (
+            start_ig_highlight_worker,
+            start_tg_highlight_worker,
+        )
         asyncio.create_task(start_ig_highlight_worker(bot))
         asyncio.create_task(start_tg_highlight_worker(bot))
 
