@@ -199,7 +199,10 @@ async def process_story_request(callback: CallbackQuery, session: AsyncSession):
                     else:
                         entity = InputPeerUser(user_id=peer_id, access_hash=acc_hash)
                 else:
-                    entity = await userbot_service.client.get_input_entity(peer_id)
+                    try:
+                        entity = await userbot_service.client.get_input_entity(peer_id)
+                    except ValueError:
+                        entity = await userbot_service.client.get_input_entity(profile.ig_username)
 
                 # Fetch full entity to get updated username
                 full_entity = await userbot_service.client.get_entity(entity)
@@ -419,7 +422,10 @@ async def fetch_highlights_cmd(message: Message, session: AsyncSession):
                 else:
                     entity = InputPeerUser(user_id=peer_id, access_hash=acc_hash)
             else:
-                entity = await userbot_service.client.get_input_entity(peer_id)
+                try:
+                    entity = await userbot_service.client.get_input_entity(peer_id)
+                except ValueError:
+                    entity = await userbot_service.client.get_input_entity(profile.ig_username)
 
             pinned = await userbot_service.client(GetPinnedStoriesRequest(peer=entity))
             if pinned.stories and pinned.stories.stories:

@@ -14,6 +14,8 @@ for field_name, field_info in instagrapi.types.RelationshipShort.model_fields.it
         default=None
     )
 instagrapi.types.RelationshipShort.model_rebuild(force=True)
+instagrapi.types.UserShort.model_rebuild(force=True)
+instagrapi.types.Highlight.model_rebuild(force=True)
 # -----------------------------------
 
 from bot.utils.validators import INSTAGRAM_LINK_PATTERN

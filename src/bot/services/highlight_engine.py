@@ -168,7 +168,10 @@ async def _process_tg_highlight_batch(bot: Bot):
                     else:
                         entity = InputPeerUser(user_id=peer_id, access_hash=acc_hash)
                 else:
-                    entity = await userbot_service.client.get_input_entity(peer_id)
+                    try:
+                        entity = await userbot_service.client.get_input_entity(peer_id)
+                    except ValueError:
+                        entity = await userbot_service.client.get_input_entity(profile.ig_username)
 
                 result_stories = await userbot_service.client(
                     GetStoriesByIDRequest(peer=entity, id=story_ids)

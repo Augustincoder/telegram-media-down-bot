@@ -83,7 +83,10 @@ class TelegramUserbot:
                 else:
                     entity = InputPeerUser(user_id=peer_id, access_hash=acc_hash)
             else:
-                entity = await self.client.get_input_entity(peer_id)
+                try:
+                    entity = await self.client.get_input_entity(peer_id)
+                except ValueError:
+                    entity = await self.client.get_input_entity(peer)
 
             # Story'ni olish
             result = await self.client(
@@ -149,7 +152,10 @@ class TelegramUserbot:
                 else:
                     entity = InputPeerUser(user_id=peer_id, access_hash=acc_hash)
             else:
-                entity = await self.client.get_input_entity(peer_id)
+                try:
+                    entity = await self.client.get_input_entity(peer_id)
+                except ValueError:
+                    entity = await self.client.get_input_entity(peer)
             
             result = await self.client(GetPeerStoriesRequest(peer=entity))
             if not result.stories or not result.stories.stories:
