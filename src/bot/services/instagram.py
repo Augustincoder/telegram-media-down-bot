@@ -2,7 +2,19 @@ import asyncio
 import logging
 
 from instagrapi import Client
+import instagrapi.types
+from pydantic.fields import FieldInfo
 from instagrapi.exceptions import ChallengeRequired
+
+# --- MONKEY PATCH FOR instagrapi ---
+# Instagram Ba'zan friendship_status ni to'liq qaytarmaydi, bu esa pydantic validation error beradi.
+for field_name, field_info in instagrapi.types.RelationshipShort.model_fields.items():
+    instagrapi.types.RelationshipShort.model_fields[field_name] = FieldInfo(
+        annotation=field_info.annotation | None,
+        default=None
+    )
+instagrapi.types.RelationshipShort.model_rebuild(force=True)
+# -----------------------------------
 
 from bot.utils.validators import INSTAGRAM_LINK_PATTERN
 
