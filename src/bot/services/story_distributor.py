@@ -141,7 +141,7 @@ async def distribute_tg_stories(
                     sent_count += 1
             continue
 
-        file_path = f"downloads/tg_story_{username}_{story_id}.mp4"
+        file_path = f"downloads/tg_story_{username}_{story_id}"
         os.makedirs("downloads", exist_ok=True)
         try:
             downloaded = await userbot_service.download_story(download_peer, story.id, file_path, access_hash=access_hash)

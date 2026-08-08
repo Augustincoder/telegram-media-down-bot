@@ -227,7 +227,7 @@ async def handle_telegram_story(
     status_msg = await message.answer("⚡ Telegram hikoyasi tortilmoqda...")
 
 
-    file_path = f"downloads/tg_story_{peer}_{story_id}.mp4"
+    file_path = f"downloads/tg_story_{peer}_{story_id}"
     os.makedirs("downloads", exist_ok=True)
 
     try:
@@ -268,7 +268,7 @@ async def handle_telegram_message(
         return
 
     status_msg = await message.answer("⚡ Telegram posti tortilmoqda...")
-    file_path = f"downloads/tg_post_{peer}_{message_id}.mp4"
+    file_path = f"downloads/tg_post_{peer}_{message_id}"
     os.makedirs("downloads", exist_ok=True)
 
     try:

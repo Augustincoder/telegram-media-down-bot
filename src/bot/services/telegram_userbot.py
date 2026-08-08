@@ -126,7 +126,7 @@ class TelegramUserbot:
                 return
 
             for story in result.stories.stories:
-                file_path = os.path.join(dir_path, f"tg_story_{peer}_{story.id}.mp4")
+                file_path = os.path.join(dir_path, f"tg_story_{peer}_{story.id}")
                 dl_file = await self.client.download_media(story.media, file=file_path)
                 if dl_file:
                     yield dl_file

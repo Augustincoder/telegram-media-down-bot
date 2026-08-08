@@ -46,6 +46,11 @@ async def init_models():
             await conn.execute(text("ALTER TABLE saved_profiles ADD COLUMN tg_access_hash VARCHAR"))
         except Exception:
             pass
+        try:
+            from sqlalchemy import text
+            await conn.execute(text("ALTER TABLE saved_profiles ADD COLUMN last_checked_at TIMESTAMP WITH TIME ZONE DEFAULT '1970-01-01 00:00:00+00'"))
+        except Exception:
+            pass
 
 
 async def get_session() -> AsyncSession:
