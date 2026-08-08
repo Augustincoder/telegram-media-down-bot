@@ -38,7 +38,7 @@ async def init_models():
         # For production with Alembic, we wouldn't use create_all()
         await conn.run_sync(Base.metadata.create_all)
         
-    # Run the migration in a separate transaction so a failure doesn't rollback create_all
+    # Run migrations in separate transactions so a failure in one doesn't abort the other
     async with engine.begin() as conn:
         try:
             from sqlalchemy import text
@@ -46,6 +46,8 @@ async def init_models():
             await conn.execute(text("ALTER TABLE saved_profiles ADD COLUMN tg_access_hash VARCHAR"))
         except Exception:
             pass
+
+    async with engine.begin() as conn:
         try:
             from sqlalchemy import text
             await conn.execute(text("ALTER TABLE saved_profiles ADD COLUMN last_checked_at TIMESTAMP WITH TIME ZONE DEFAULT '1970-01-01 00:00:00+00'"))
