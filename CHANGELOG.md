@@ -8,10 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Story Monitor Refactoring & Scheduling**: Completely rewrote `story_monitor.py` to decouple Instagram and Telegram story monitoring into two separate asynchronous background tasks (`ig_monitor_worker` and `tg_monitor_worker`). Introduced a `last_checked_at` column to the `SavedProfile` table, enabling a true round-robin scheduling system. Instagram now safely processes 10 oldest checked profiles every 1-2 hours (with 1-minute intervals between profiles), while Telegram processes 10 profiles every 10 minutes independently.
 - **Removed SQLite Support**: Completely removed SQLite support from the codebase. The project is now 100% migrated to PostgreSQL for production deployments (e.g., Northflank). Removed `aiosqlite` dependency, updated `Dockerfile` to strip volume definitions, and enforced `DATABASE_URL` as a strictly required environment variable.
 - **Codebase Refactor and Linting**: Performed a comprehensive codebase scan utilizing `ruff`. Resolved minor bugs, unused variables, unsorted imports, and extraneous f-string declarations (e.g. in `story_distributor.py`). Cleaned up and optimized import logic across the `bot` directory to eliminate spaghetti patterns and improve overall stability.
 
 ### Fixed
+- **Telegram Hardcoded .mp4 Extension Bug**: Resolved a bug in `messages.py` and `story_distributor.py` where all downloaded Telegram stories and posts were hardcoded with a `.mp4` extension. This caused images to be erroneously downloaded and sent as short 1-2 second videos. The extension is now dynamically assigned by Telethon based on the media's MIME type.
+- **Telegram Username Resolution Error**: Fixed an issue in the Story Monitor where Telegram queries were relying solely on the cached `username` rather than the `ig_user_id` (Telegram ID). This prevented "No user has username" crashes when target accounts changed their usernames.
+- **Telegram Access Hash Integrity (`"None"` String Bug)**: Addressed a database assignment error in `saved.py` where a missing access hash (e.g., for self profile) was stored as the literal string `"None"` instead of an SQL `NULL`, which later caused `ValueError` crashes during `int()` conversion.
+- **Telethon GetPinnedStoriesRequest Crash**: Fixed a crash in the `/highlights tg` functionality by adding the mandatory `offset_id=0` and `limit=100` parameters to `GetPinnedStoriesRequest` in `saved.py`.
 - **PostgreSQL Transaction Rollback Bug**: Fixed a critical DDL bug in `session.py` (`init_models()`) where an ignored `ALTER TABLE` error (e.g., `DuplicateColumn`) in Postgres caused the entire async connection transaction block to abort, silently rolling back the initial `create_all()` execution and preventing new tables (like `highlight_tasks`) from being created on production servers (e.g. Northflank).
 
 ### Added
