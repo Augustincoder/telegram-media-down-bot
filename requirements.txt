@@ -2,7 +2,6 @@ aiogram
 instagrapi
 telethon
 sqlalchemy
-aiosqlite
 pydantic
 pydantic-settings
 cryptography
